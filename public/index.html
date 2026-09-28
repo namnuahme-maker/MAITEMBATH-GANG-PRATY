@@ -9,6 +9,7 @@
     <link rel="apple-touch-icon" href="/PNRJAPANLOGO.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
@@ -40,26 +41,44 @@
             background: #ABD2FA; cursor: pointer; border: 2px solid #000000;
         }
 
-        /* Intro Animation */
+        /* MINIMAL LUXE INTRO */
         #intro-overlay {
-            animation: intro-fade 3.5s ease-in-out forwards;
+            background: #000;
+            transition: opacity 1.2s cubic-bezier(0.4, 0, 0, 1);
         }
-        @keyframes intro-fade {
-            0% { opacity: 1; pointer-events: auto; }
-            80% { opacity: 1; pointer-events: auto; }
-            100% { opacity: 0; pointer-events: none; visibility: hidden; }
+        #intro-overlay.intro-exit {
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
-        .intro-text {
-            background: linear-gradient(to right, #ABD2FA, #ffffff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: text-blur 3s ease-in-out forwards;
+        @keyframes introFadeUp {
+            0% { opacity: 0; transform: translateY(18px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
-        @keyframes text-blur {
-            0% { filter: blur(10px); opacity: 0; transform: scale(0.9); }
-            20% { filter: blur(0); opacity: 1; transform: scale(1); }
-            80% { filter: blur(0); opacity: 1; transform: scale(1); }
-            100% { filter: blur(10px); opacity: 0; transform: scale(1.1); }
+        @keyframes introLogoReveal {
+            0% { opacity: 0; transform: scale(0.88); filter: blur(12px); }
+            60% { opacity: 1; transform: scale(1.02); filter: blur(0); }
+            100% { opacity: 1; transform: scale(1); filter: blur(0); }
+        }
+        @keyframes introGlowPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(171, 210, 250, 0), 0 0 40px rgba(171, 210, 250, 0.08); }
+            50% { box-shadow: 0 0 0 18px rgba(171, 210, 250, 0), 0 0 60px rgba(171, 210, 250, 0.18); }
+        }
+        @keyframes introLineGrow {
+            0% { width: 0; }
+            100% { width: 100%; }
+        }
+        .intro-logo-anim {
+            animation: introLogoReveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+                       introGlowPulse 3s ease-in-out 0.8s infinite;
+        }
+        .intro-text-anim {
+            opacity: 0;
+            animation: introFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .intro-progress-line {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #ABD2FA, transparent);
+            animation: introLineGrow 2.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
         /* Danmaku */
@@ -155,15 +174,268 @@
             body.client-mode #player-area { display: none !important; }
         }
         body.web-fullscreen header { display: none !important; }
+
+        /* Weather Radar & GPS Navigation Panel: Smooth Cross-Fade + Blur + Slide + Scale In-Place Swap with Control Panel (aside) */
+        @keyframes radarPanelGlow {
+            0%, 100% {
+                box-shadow: inset 0 0 22px rgba(56, 189, 248, 0.14), -4px 0 24px rgba(16, 185, 129, 0.16);
+                border-left-color: rgba(56, 189, 248, 0.55);
+            }
+            50% {
+                box-shadow: inset 0 0 34px rgba(16, 185, 129, 0.24), -6px 0 32px rgba(56, 189, 248, 0.28);
+                border-left-color: rgba(52, 211, 153, 0.75);
+            }
+        }
+        @keyframes showcaseBannerShimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes countdownPop {
+            0% { transform: scale(1.32); color: #6ee7b7; }
+            100% { transform: scale(1); color: #34d399; }
+        }
+        @keyframes controlReturnGlow {
+            0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); transform: scale(0.97); }
+            50% { box-shadow: 0 0 22px 4px rgba(52, 211, 153, 0.32); transform: scale(1.02); }
+            100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); transform: scale(1); }
+        }
+        .animate-countdown-pop {
+            display: inline-block;
+            animation: countdownPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .animate-control-return {
+            animation: controlReturnGlow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        /* Control Panel (aside) smooth fade-in / fade-out */
+        main > aside {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transform: translateX(0) scale(1);
+            filter: blur(0px);
+            transition:
+                opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                filter 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                visibility 0s linear 0s;
+            will-change: opacity, transform, filter;
+        }
+        body.split-radar-active main > aside,
+        body.nav-radar-showcase main > aside {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            transform: translateX(-24px) scale(0.96) !important;
+            filter: blur(10px) !important;
+            transition:
+                opacity 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+                filter 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+                visibility 0s linear 0.52s !important;
+        }
+
+        /* Map & Weather Radar Panel (#radar-nav-panel) overlaid on the exact same slot as Control Panel */
+        #radar-nav-panel {
+            display: flex !important;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: translateX(28px) scale(0.96);
+            filter: blur(10px);
+            transition:
+                opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                filter 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.55s ease,
+                visibility 0s linear 0.55s;
+            will-change: opacity, transform, filter;
+        }
+        body.split-radar-active #radar-nav-panel,
+        body.nav-radar-showcase #radar-nav-panel {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            transform: translateX(0) scale(1) !important;
+            filter: blur(0px) !important;
+            transition:
+                opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                filter 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.55s ease,
+                visibility 0s linear 0s !important;
+        }
+        body.nav-radar-showcase #radar-nav-panel {
+            animation: radarPanelGlow 2.6s ease-in-out infinite;
+        }
+
+        /* Staggered inner elements inside #radar-nav-panel when opening */
+        #radar-nav-panel #weather-analysis-card,
+        #radar-nav-panel #nav-controls-wrapper,
+        #radar-nav-panel #radar-timeline-bar {
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1), transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        body.split-radar-active #radar-nav-panel #weather-analysis-card,
+        body.nav-radar-showcase #radar-nav-panel #weather-analysis-card {
+            opacity: 1;
+            transform: translateY(0);
+            transition-delay: 0.08s;
+        }
+        body.split-radar-active #radar-nav-panel #nav-controls-wrapper,
+        body.nav-radar-showcase #radar-nav-panel #nav-controls-wrapper {
+            opacity: 1;
+            transform: translateY(0);
+            transition-delay: 0.15s;
+        }
+        body.split-radar-active #radar-nav-panel #radar-timeline-bar,
+        body.nav-radar-showcase #radar-nav-panel #radar-timeline-bar {
+            opacity: 1;
+            transform: translateY(0);
+            transition-delay: 0.22s;
+        }
+
+        body.nav-radar-showcase #nav-step-input,
+        body.nav-radar-showcase #nav-step-preview {
+            display: none !important;
+        }
+        @media (min-width: 768px) {
+            #radar-nav-panel {
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                width: 25% !important;
+                height: 100% !important;
+            }
+        }
+        @media (max-width: 767px) {
+            #radar-nav-panel {
+                position: absolute;
+                top: 28vh;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100% !important;
+            }
+            body.client-mode #radar-nav-panel {
+                top: 0;
+            }
+        }
+        .leaflet-container {
+            background: #070b12 !important;
+            font-family: 'Kanit', sans-serif !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        /* Optional Dark Theme filter for Google Maps street tiles so radar colors pop without needing Carto API key */
+        .map-theme-dark .basemap-tile-layer {
+            filter: invert(92%) hue-rotate(185deg) brightness(92%) contrast(92%);
+        }
+        .gps-user-dot {
+            width: 16px;
+            height: 16px;
+            background: #38bdf8;
+            border: 2.5px solid #ffffff;
+            border-radius: 9999px;
+            box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.32), 0 0 14px rgba(56, 189, 248, 0.9);
+        }
+        .gps-dest-dot {
+            width: 18px;
+            height: 18px;
+            background: #ef4444;
+            border: 2.5px solid #ffffff;
+            border-radius: 9999px;
+            box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.32), 0 0 14px rgba(239, 68, 68, 0.9);
+        }
+        /* Weather Alert Country-to-User Zoom Sonar Rings & Target Lock HUD */
+        @keyframes radarSonarRing {
+            0% {
+                transform: translate(-50%, -50%) scale(0.25);
+                opacity: 0.95;
+            }
+            75% {
+                opacity: 0.35;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(2.8);
+                opacity: 0;
+            }
+        }
+        @keyframes targetBadgeFloat {
+            0%, 100% { transform: translate(-50%, 0px); }
+            50% { transform: translate(-50%, -4px); }
+        }
+        .weather-target-pin {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+        }
+        .weather-target-pin .sonar-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 54px;
+            height: 54px;
+            border-radius: 9999px;
+            border: 2.5px solid #38bdf8;
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.65), inset 0 0 12px rgba(56, 189, 248, 0.35);
+            animation: radarSonarRing 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+        }
+        .weather-target-pin.storm-mode .sonar-ring {
+            border-color: #ef4444;
+            box-shadow: 0 0 22px rgba(239, 68, 68, 0.8), inset 0 0 14px rgba(245, 158, 11, 0.45);
+        }
+        .weather-target-pin .sonar-ring.delay-1 {
+            animation-delay: 0.7s;
+        }
+        .weather-target-pin .sonar-ring.delay-2 {
+            animation-delay: 1.4s;
+        }
+        .weather-target-label {
+            position: absolute;
+            bottom: 26px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #ffffff;
+            background: rgba(8, 20, 38, 0.92);
+            border: 1px solid rgba(56, 189, 248, 0.75);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65), 0 0 12px rgba(56, 189, 248, 0.4);
+            animation: targetBadgeFloat 2s ease-in-out infinite;
+        }
+        .weather-target-pin.storm-mode .weather-target-label {
+            background: rgba(40, 10, 14, 0.94);
+            border-color: rgba(239, 68, 68, 0.85);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), 0 0 14px rgba(239, 68, 68, 0.55);
+        }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden bg-primary text-brand-light">
 
-    <!-- Intro Overlay -->
-    <div id="intro-overlay" class="fixed inset-0 bg-primary z-[100] flex flex-col items-center justify-center">
-        <img src="/PNRJAPANLOGO.png" alt="PNR Japan Logo" class="w-24 h-24 md:w-32 md:h-32 mb-6 intro-text rounded-full shadow-lg shadow-brand-peri/20" style="animation-delay: 0s; -webkit-text-fill-color: unset; background: none;">
-        <h1 class="text-5xl md:text-7xl font-bold intro-text tracking-widest">สวัสดี</h1>
-        <p class="mt-4 text-sm text-brand-light/70 tracking-widest intro-text" style="animation-delay: 0.3s">สร้างโดย NAMNUAH</p>
+    <!-- MINIMAL LUXE INTRO OVERLAY -->
+    <div id="intro-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center select-none">
+        <!-- Subtle ambient glow -->
+        <div class="absolute w-[320px] h-[320px] rounded-full bg-brand-peri/[0.04] blur-[100px] pointer-events-none"></div>
+
+        <!-- Logo -->
+        <img src="/PNRJAPANLOGO.png" alt="Logo" class="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover intro-logo-anim border border-white/10">
+
+        <!-- Title -->
+        <h1 class="intro-text-anim mt-6 text-lg md:text-xl font-light tracking-[0.3em] text-white/90 uppercase" style="animation-delay: 0.4s">MAITEMBATH</h1>
+        <p class="intro-text-anim mt-1.5 text-[10px] md:text-xs tracking-[0.5em] text-brand-light/40 uppercase font-light" style="animation-delay: 0.7s">GANG PARTY</p>
+
+        <!-- Thin progress line -->
+        <div class="mt-8 w-40 md:w-52 overflow-hidden">
+            <div class="intro-progress-line"></div>
+        </div>
     </div>
 
     <!-- Login/Profile Overlay -->
@@ -187,31 +459,254 @@
         </div>
     </div>
 
-    <!-- Header -->
-    <header class="bg-[#0a0a0a] border-b border-brand-deep/30 px-4 py-2.5 flex items-center justify-between shrink-0 z-30">
-        <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden">
-                <img src="/PNRJAPANLOGO.png" alt="Logo" class="w-9 h-9 object-cover rounded-lg">
+    <!-- Settings, Profile & 5-Tap Hidden Test Lab Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[70] flex items-center justify-center p-3 hidden">
+        <div class="bg-[#080c14] border border-brand-peri/40 rounded-2xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-2xl shadow-brand-deep/40 overflow-hidden animate-fade-in-up">
+            <!-- Modal Header -->
+            <div class="px-4 py-3 bg-[#0c1320] border-b border-brand-deep/50 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2.5 select-none cursor-pointer" id="modal-gear-5tap" title="กดย้ำๆ 5 ครั้งเพื่อเปิดหน้าทดสอบการแจ้งเตือน">
+                    <div class="w-8 h-8 rounded-lg bg-brand-peri/15 border border-brand-peri/40 flex items-center justify-center text-brand-peri">
+                        <i id="settings-gear-icon" class="fa-solid fa-gear text-sm transition-transform duration-300"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-white leading-tight">การตั้งค่า & ปรับแต่งโปรไฟล์</h3>
+                        <p class="text-[10px] text-brand-light/60">ตั้งค่าผู้ใช้งาน เสียงแจ้งเตือน และระบบนำทาง</p>
+                    </div>
+                </div>
+                <button id="close-settings-btn" class="w-7 h-7 rounded-lg bg-red-950/40 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30 flex items-center justify-center text-xs transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
-            <div>
-                <h1 class="text-base font-semibold text-brand-light leading-tight">MAITEMBATH GANG PARTY</h1>
+
+            <!-- Modal Scrollable Body -->
+            <div class="p-4 overflow-y-auto space-y-4 text-left flex-1">
+                <!-- 1. Profile Customization -->
+                <div class="bg-[#0b101b] border border-brand-deep/50 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5">
+                            <i class="fa-solid fa-user-pen"></i> ปรับแต่งโปรไฟล์ของคุณ
+                        </h4>
+                        <span id="profile-preview-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-black/60 border border-brand-deep/50 font-medium">ตัวอย่างชื่อ</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="text-[10px] text-brand-light/70 block mb-1">ชื่อเล่นที่แสดงในห้องปาร์ตี้</label>
+                            <input id="settings-name" type="text" maxlength="25" placeholder="ใส่ชื่อเล่นของคุณ..." class="w-full bg-primary border border-brand-deep/60 rounded-lg px-3 py-1.5 text-xs text-white placeholder-brand-light/40 focus:outline-none focus:border-brand-peri">
+                        </div>
+                        <div class="flex items-center justify-between gap-2 pt-1">
+                            <div class="flex items-center gap-2">
+                                <label class="text-[10px] text-brand-light/70">สีประจำตัว:</label>
+                                <input id="settings-color" type="color" value="#ABD2FA" class="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0">
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" data-preset-color="#ABD2FA" class="w-5 h-5 rounded-full bg-[#ABD2FA] border border-white/30 hover:scale-110 transition"></button>
+                                <button type="button" data-preset-color="#10b981" class="w-5 h-5 rounded-full bg-[#10b981] border border-white/30 hover:scale-110 transition"></button>
+                                <button type="button" data-preset-color="#f472b6" class="w-5 h-5 rounded-full bg-[#f472b6] border border-white/30 hover:scale-110 transition"></button>
+                                <button type="button" data-preset-color="#fbbf24" class="w-5 h-5 rounded-full bg-[#fbbf24] border border-white/30 hover:scale-110 transition"></button>
+                                <button type="button" data-preset-color="#a78bfa" class="w-5 h-5 rounded-full bg-[#a78bfa] border border-white/30 hover:scale-110 transition"></button>
+                                <button type="button" data-preset-color="#f87171" class="w-5 h-5 rounded-full bg-[#f87171] border border-white/30 hover:scale-110 transition"></button>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="save-profile-btn" class="w-full bg-brand-peri hover:bg-brand-light text-primary font-semibold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-brand-peri/15">
+                        <i class="fa-solid fa-floppy-disk"></i> บันทึกโปรไฟล์
+                    </button>
+                </div>
+
+                <!-- 2. General & Navigation Settings -->
+                <div class="bg-[#0b101b] border border-brand-deep/50 rounded-xl p-3.5 space-y-2.5">
+                    <h4 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders"></i> ตั้งค่าระบบและการแจ้งเตือน
+                    </h4>
+
+                    <label class="flex items-center justify-between py-1 cursor-pointer">
+                        <div>
+                            <p class="text-xs text-white font-medium">เสียงพูดแจ้งเตือนนำทาง & สภาพอากาศ (TTS)</p>
+                            <p class="text-[10px] text-brand-light/55">พูดเตือนเมื่อเริ่มนำทาง, ถึง 90%, หรือเมื่อมีโอกาสฝนตก</p>
+                        </div>
+                        <input type="checkbox" id="settings-nav-tts" checked class="w-4 h-4 rounded accent-brand-peri cursor-pointer">
+                    </label>
+
+                    <label class="flex items-center justify-between py-1 border-t border-brand-deep/30 cursor-pointer">
+                        <div>
+                            <p class="text-xs text-white font-medium">อ่านออกเสียงข้อความวิ่งหน้าจอ (Danmaku TTS)</p>
+                            <p class="text-[10px] text-brand-light/55">ให้ระบบอ่านข้อความวิ่งที่ส่งเข้ามาบนเครื่อง Host</p>
+                        </div>
+                        <input type="checkbox" id="settings-danmaku-tts" class="w-4 h-4 rounded accent-brand-peri cursor-pointer">
+                    </label>
+
+                    <div class="flex items-center justify-between pt-1.5 border-t border-brand-deep/30">
+                        <span class="text-xs text-white font-medium">รูปแบบแผนที่เรดาร์</span>
+                        <select id="settings-map-style" class="bg-primary border border-brand-deep/60 text-brand-peri text-[11px] rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-peri">
+                            <option value="dark">🌙 แผนที่มืด (เห็นเรดาร์ชัดสุด)</option>
+                            <option value="street">🗺️ แผนที่ถนน Google (สีปกติ)</option>
+                            <option value="hybrid">🛰️ ภาพดาวเทียม + ถนน</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-1.5">
+                        <button id="settings-refresh-gps-btn" class="w-full bg-[#101929] hover:bg-brand-deep/70 border border-brand-deep/60 text-brand-light rounded-lg py-2 px-3 text-[11px] transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-location-crosshairs text-sky-400"></i> รีเฟรชพิกัด GPS ปัจจุบัน
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. 5-Tap Unlock Button for Event & Alert Test Lab -->
+                <div class="pt-1">
+                    <button id="secret-test-unlock-btn" type="button" class="w-full bg-[#0a0f18] hover:bg-[#111a29] active:scale-[0.99] border border-dashed border-brand-deep/70 rounded-xl px-3 py-2.5 flex items-center justify-between text-left transition select-none">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <i class="fa-solid fa-flask-vial text-amber-400 text-xs shrink-0"></i>
+                            <div class="min-w-0">
+                                <p class="text-[11px] font-semibold text-brand-light truncate">ระบบทดสอบฟีเจอร์ & ทดสอบการแจ้งเตือน</p>
+                                <p id="secret-tap-hint" class="text-[9px] text-brand-light/50 truncate">กดย้ำๆ ที่ปุ่มนี้ 5 ครั้ง เพื่อเปิดหน้าทดสอบการแจ้งเตือนทุกเหตุการณ์</p>
+                            </div>
+                        </div>
+                        <span id="secret-tap-badge" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">0/5</span>
+                    </button>
+                </div>
+
+                <!-- 4. Hidden System & Alert Test Lab (Revealed after 5 rapid taps!) -->
+                <div id="test-lab-panel" class="hidden bg-gradient-to-b from-[#10192b] to-[#090e18] border-2 border-amber-400/50 rounded-xl p-3.5 space-y-3 animate-fade-in-up shadow-xl shadow-amber-500/10">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                            <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider">🧪 ศูนย์ทดสอบระบบ & การแจ้งเตือน (ปลดล็อกแล้ว)</h4>
+                        </div>
+                        <label class="flex items-center gap-1 text-[10px] text-sky-300 cursor-pointer select-none" title="ส่งผลการทดสอบไปที่ทุกเครื่องพร้อมกัน">
+                            <input type="checkbox" id="test-sync-all-toggle" checked class="rounded accent-sky-400">
+                            <span>ซิงค์ทุกเครื่อง</span>
+                        </label>
+                    </div>
+
+                    <p class="text-[10px] text-brand-light/75 leading-relaxed">
+                        กดปุ่มด้านล่างเพื่อจำลองเหตุการณ์และทดสอบเสียงแจ้งเตือน/การสลับหน้าจอได้ทันทีโดยไม่ต้องรอเวลาจริง:
+                    </p>
+
+                    <div class="grid grid-cols-1 gap-2">
+                        <!-- Test 1: Rain Warning ("อาจมีฝนตก ส่งสัญญาณเตือนไม่ต้องดังมาก แล้วโชว์เรดาร์") -->
+                        <button id="btn-test-rain-alert" type="button" class="w-full bg-sky-950/60 hover:bg-sky-900/80 border border-sky-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-cloud-showers-heavy"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-white group-hover:text-sky-300 truncate">1. ทดสอบเตือน "อาจมีฝนตก" + เปิดเรดาร์</p>
+                                    <p class="text-[10px] text-brand-light/60 truncate">ส่งสัญญาณเตือนเบาๆ (Soft Chime) + เปิดโชว์เรดาร์เมฆฝนอัตโนมัติ</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-sky-500/20 text-sky-300 font-semibold shrink-0">ทดสอบ</span>
+                        </button>
+
+                        <!-- Test 2: 90% Near Destination Voice Alert -->
+                        <button id="btn-test-90pct-alert" type="button" class="w-full bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-flag-checkered"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-white group-hover:text-emerald-300 truncate">2. ทดสอบเดินทางถึง 90% (ใกล้ถึงจุดหมาย)</p>
+                                    <p class="text-[10px] text-brand-light/60 truncate">พูดเตือนใกล้ถึงจุดหมาย + บอกเวลาที่เหลือ (5 นาที) และระยะทาง (2.4 กม.)</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 font-semibold shrink-0">ทดสอบ</span>
+                        </button>
+
+                        <!-- Test 3: 20-Minute Auto Radar Showcase (10 Seconds Display Replacing Control Panel) -->
+                        <button id="btn-test-20m-showcase" type="button" class="w-full bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-eye"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-white group-hover:text-indigo-300 truncate">3. ทดสอบสลับโชว์แผนที่แทนแผงควบคุม (10 วินาที)</p>
+                                    <p class="text-[10px] text-brand-light/60 truncate">โชว์แผนที่นำทาง + เรดาร์อากาศแทนแผงควบคุม 10 วิ แล้วสลับกลับอัตโนมัติ (ไม่เบียดวิดีโอ)</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 font-semibold shrink-0">ทดสอบ</span>
+                        </button>
+
+                        <!-- Test 4: Simulated Live Driving Route (0% -> 50% -> 90% -> 100%) -->
+                        <button id="btn-test-sim-drive" type="button" class="w-full bg-amber-950/60 hover:bg-amber-900/80 border border-amber-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-car-side"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-white group-hover:text-amber-300 truncate">4. จำลองการขับรถนำทางจริง (0% ➔ 90% ➔ 100%)</p>
+                                    <p class="text-[10px] text-brand-light/60 truncate">สร้างเส้นทางจำลองแล้วขยับพิกัดรถอัตโนมัติจนครบ 90% และถึงที่หมาย</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-amber-500/20 text-amber-300 font-semibold shrink-0">จำลอง</span>
+                        </button>
+
+                        <!-- Test 5: Severe Thunderstorm & Arrival & Danmaku/Reactions Row -->
+                        <div class="grid grid-cols-3 gap-1.5 pt-1">
+                            <button id="btn-test-storm-alert" type="button" class="bg-[#141c2b] hover:bg-red-950/60 border border-red-500/30 rounded-lg py-2 px-1.5 text-center transition">
+                                <i class="fa-solid fa-cloud-bolt text-red-400 text-xs block mb-0.5"></i>
+                                <span class="text-[10px] text-white font-medium block">เตือนพายุหนัก</span>
+                            </button>
+                            <button id="btn-test-arrived-alert" type="button" class="bg-[#141c2b] hover:bg-emerald-950/60 border border-emerald-500/30 rounded-lg py-2 px-1.5 text-center transition">
+                                <i class="fa-solid fa-location-dot text-emerald-400 text-xs block mb-0.5"></i>
+                                <span class="text-[10px] text-white font-medium block">ถึงที่หมาย 100%</span>
+                            </button>
+                            <button id="btn-test-party-fx" type="button" class="bg-[#141c2b] hover:bg-purple-950/60 border border-purple-500/30 rounded-lg py-2 px-1.5 text-center transition">
+                                <i class="fa-solid fa-wand-magic-sparkles text-purple-400 text-xs block mb-0.5"></i>
+                                <span class="text-[10px] text-white font-medium block">เอฟเฟกต์ปาร์ตี้</span>
+                            </button>
+                        </div>
+
+                        <!-- Test 6: Replay 10x Cyber Intro & Cinematic Sound -->
+                        <button id="btn-test-intro" type="button" class="w-full mt-1.5 bg-gradient-to-r from-cyan-950/60 via-indigo-950/60 to-purple-950/60 hover:from-cyan-900/70 hover:to-purple-900/70 border border-cyan-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-film text-xs"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-white group-hover:text-cyan-300 truncate">🎬 เล่น Intro เปิดตัวเว็บ 3D + เสียงเอฟเฟกต์</p>
+                                    <p class="text-[10px] text-brand-light/60 truncate">ทดสอบฉากเปิดตัว Warp 3D และซาวด์สังเคราะห์สุดเท่</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 font-semibold shrink-0">เล่นซ้ำ</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="flex items-center gap-2">
-            <span id="status-badge" class="text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+    </div>
+
+    <!-- Header -->
+    <header class="bg-[#0a0a0a] border-b border-brand-deep/30 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 z-30">
+        <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                <img src="/PNRJAPANLOGO.png" alt="Logo" class="w-full h-full object-cover rounded-lg">
+            </div>
+            <div class="min-w-0">
+                <h1 class="text-xs sm:text-base font-semibold text-brand-light leading-tight truncate">MAITEMBATH GANG PARTY</h1>
+            </div>
+        </div>
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button id="header-radar-btn" class="text-[11px] px-2.5 py-1 rounded-lg bg-[#0d1624] hover:bg-brand-deep/80 text-brand-peri border border-brand-peri/30 transition flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0" title="เปิด/ปิด เรดาร์สภาพอากาศ & GPS นำทาง">
+                <i class="fa-solid fa-satellite-dish text-sky-400"></i>
+                <span class="hidden sm:inline font-medium">เรดาร์อากาศ & GPS นำทาง</span>
+                <span class="sm:hidden font-medium">เรดาร์/GPS</span>
+            </button>
+            <span id="status-badge" class="text-[10px] sm:text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30 whitespace-nowrap shrink-0">
                 ● กำลังเชื่อมต่อ
             </span>
-            <span id="online-count" class="text-[11px] px-2 py-1 rounded bg-[#0a0a0a] text-brand-peri border border-brand-deep/50 hidden sm:inline-flex items-center gap-1">
+            <span id="online-count" class="text-[10px] sm:text-[11px] px-2 py-1 rounded bg-[#0a0a0a] text-brand-peri border border-brand-deep/50 hidden sm:inline-flex items-center gap-1 whitespace-nowrap shrink-0">
                 <i class="fa-solid fa-users text-[9px]"></i> <span id="online-num">0</span>
             </span>
+            <button id="header-settings-btn" class="w-8 h-8 rounded-lg bg-[#0d1624] hover:bg-brand-deep/80 text-brand-peri border border-brand-peri/30 transition flex items-center justify-center shadow-sm shrink-0" title="การตั้งค่า & ปรับแต่งโปรไฟล์ (กดย้ำ 5 ครั้งเพื่อเปิดโหมดทดสอบ)">
+                <i class="fa-solid fa-gear text-xs"></i>
+            </button>
         </div>
     </header>
 
     <!-- Main -->
-    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+    <main class="relative flex-1 flex flex-col md:flex-row overflow-hidden">
 
         <!-- Video Player Area -->
-        <section id="player-area" class="h-[28vh] md:h-auto md:w-[75%] md:flex-none bg-primary relative flex items-center justify-center overflow-hidden shrink-0">
+        <section id="player-area" class="h-[28vh] md:h-auto md:w-[75%] md:flex-none bg-primary relative flex items-center justify-center overflow-hidden shrink-0 transition-all duration-300">
             <!-- Danmaku layer -->
             <div id="danmaku-layer" class="absolute inset-0 pointer-events-none overflow-hidden z-30"></div>
             
@@ -284,16 +779,226 @@
             </button>
         </section>
 
-        <!-- Right Panel (25% on desktop) -->
-        <aside class="relative w-full md:w-[25%] flex-1 min-h-0 bg-[#050505] flex flex-col overflow-hidden shrink-0 border-l border-brand-deep/30">
-            
-            <!-- QR Code (Host Mode Only, Bottom Right) -->
-            <div id="qr-container" class="absolute bottom-3 right-3 bg-white p-2.5 rounded-xl z-40 hidden shadow-2xl shadow-black/70 border-2 border-brand-peri flex flex-col items-center cursor-pointer transition-transform duration-200 hover:scale-[1.03]" title="คลิกเพื่อคัดลอกลิงก์">
-                <div id="qrcode" class="w-[120px] h-[120px] flex items-center justify-center"></div>
-                <div class="w-[120px] mt-1.5 pt-1 border-t border-slate-200 text-center overflow-hidden flex justify-center">
-                    <span id="url-display" class="text-[9px] text-[#1c2938] font-bold select-all whitespace-nowrap leading-tight block"></span>
+        <!-- Weather Radar & GPS Navigation Panel (Cross-Fades In Place of Control Panel) -->
+        <section id="radar-nav-panel" class="flex-col bg-[#06090f] border-l border-brand-deep/40 overflow-hidden shrink-0 z-25">
+            <!-- Top Bar -->
+            <div class="px-3 py-2 bg-[#0a0f18] border-b border-brand-deep/40 flex items-center justify-between gap-2 shrink-0">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0"></span>
+                    <h2 class="text-xs font-semibold text-white truncate">เรดาร์สภาพอากาศ & GPS นำทาง</h2>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button id="btn-mode-map-radar" class="px-2 py-1 rounded text-[10px] font-medium bg-sky-500/20 text-sky-300 border border-sky-400/40 transition" title="แผนที่นำทาง + เรดาร์ฝน">
+                        <i class="fa-solid fa-route mr-0.5"></i> แผนที่+เรดาร์
+                    </button>
+                    <button id="btn-mode-windy" class="px-2 py-1 rounded text-[10px] font-medium bg-[#0a0a0a] text-brand-light/70 border border-brand-deep/40 hover:text-white transition" title="คลิปเรดาร์สภาพอากาศ Windy สด">
+                        <i class="fa-solid fa-wind mr-0.5"></i> คลิปเรดาร์สด
+                    </button>
+                    <button id="btn-nav-tts" class="px-2 py-1 rounded text-[10px] bg-brand-peri/20 text-brand-peri border border-brand-peri/40 transition" title="เปิด/ปิด เสียงพูดแจ้งเตือนนำทางและสภาพอากาศ (TTS)">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <button id="btn-refresh-gps" class="px-2 py-1 rounded text-[10px] bg-[#0a0a0a] hover:bg-brand-deep/60 text-brand-light border border-brand-deep/40 transition" title="ขอพิกัด GPS ปัจจุบันใหม่">
+                        <i id="gps-spin-icon" class="fa-solid fa-location-crosshairs"></i>
+                    </button>
+                    <button id="btn-close-radar" class="px-2 py-1 rounded text-[10px] bg-[#101929] hover:bg-brand-peri hover:text-black text-brand-peri border border-brand-peri/40 font-semibold transition flex items-center gap-1" title="ซ่อนแผนที่และกลับมาโชว์แผงควบคุม">
+                        <i class="fa-solid fa-sliders"></i> <span>แผงควบคุม</span>
+                    </button>
                 </div>
             </div>
+
+            <!-- Weather Analysis Card -->
+            <div id="weather-analysis-card" class="p-2.5 bg-gradient-to-r from-[#0a121e] via-[#0c1626] to-[#0a121e] border-b border-brand-deep/40 shrink-0 space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1 text-[10px] text-sky-300/90">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="weather-loc-name" class="truncate font-medium">กำลังขอพิกัดที่อยู่ของคุณ...</span>
+                        </div>
+                        <div class="flex items-baseline gap-2 mt-0.5">
+                            <span id="weather-temp" class="text-xl font-bold text-white">--°C</span>
+                            <span id="weather-desc" class="text-xs text-brand-peri font-medium truncate">กำลังวิเคราะห์สภาพอากาศ...</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 text-[10px] bg-black/40 px-2.5 py-1.5 rounded-lg border border-brand-deep/40 shrink-0">
+                        <div class="text-center">
+                            <p class="text-brand-light/50 text-[9px]">โอกาสฝน</p>
+                            <p id="weather-rain-prob" class="font-semibold text-sky-300">--%</p>
+                        </div>
+                        <div class="w-[1px] h-6 bg-brand-deep/50"></div>
+                        <div class="text-center">
+                            <p class="text-brand-light/50 text-[9px]">แรงลม</p>
+                            <p id="weather-wind" class="font-semibold text-brand-light">-- กม./ชม.</p>
+                        </div>
+                        <div class="w-[1px] h-6 bg-brand-deep/50"></div>
+                        <div class="text-center">
+                            <p class="text-brand-light/50 text-[9px]">ความชื้น</p>
+                            <p id="weather-humidity" class="font-semibold text-brand-light">--%</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="weather-advice" class="text-[10px] px-2.5 py-1 rounded bg-sky-950/50 border border-sky-500/30 text-sky-200 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-sky-400 shrink-0"></i>
+                    <span class="truncate">กดอนุญาตตำแหน่งที่อยู่เพื่อให้ระบบวิเคราะห์สภาพอากาศและเรดาร์เมฆฝน</span>
+                </div>
+            </div>
+
+            <!-- GPS Navigation Controls (3 States: Input -> Preview -> Active Navigation) -->
+            <div id="nav-controls-wrapper" class="p-2.5 bg-[#080c14] border-b border-brand-deep/40 shrink-0">
+                <!-- State 1: Input Route Link -->
+                <div id="nav-step-input" class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] text-brand-peri font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <i class="fa-solid fa-diamond-turn-right"></i> ระบบ GPS นำทาง (ซิงค์ทุกคน)
+                        </label>
+                        <span class="text-[9px] text-brand-light/50">วางลิงก์ Google Maps หรือคลิกจุดหมายบนแผนที่</span>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <input id="route-link-input" type="text" placeholder="วางลิงก์เส้นทาง Google Maps หรือพิมพ์ชื่อสถานที่ปลายทาง..." class="flex-1 bg-primary border border-brand-deep/60 rounded-lg px-2.5 py-1.5 text-xs text-brand-light placeholder-brand-light/35 focus:outline-none focus:border-brand-peri">
+                        <button id="route-check-btn" class="bg-brand-peri hover:bg-brand-light text-primary font-semibold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1 shrink-0">
+                            <i id="route-check-icon" class="fa-solid fa-magnifying-glass-location"></i>
+                            <span>เช็คเส้นทาง</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- State 2: Route Preview Confirmation ("โชว์เส้นทางว่าถูกต้องมั้ย จะมีปุ่ม เริ่ม กับยกเลิก") -->
+                <div id="nav-step-preview" class="hidden space-y-2 animate-fade-in-up">
+                    <div class="bg-[#0d1624] border border-brand-peri/40 rounded-lg p-2.5 space-y-1.5">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-brand-peri/20 text-brand-peri font-semibold uppercase">ตรวจสอบเส้นทางว่าถูกต้องหรือไม่?</span>
+                                <h4 id="preview-dest-name" class="text-xs font-semibold text-white truncate mt-1">—</h4>
+                                <p id="preview-route-summary" class="text-[10px] text-brand-light/70 truncate">เส้นทางหลักตามถนน</p>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <p id="preview-duration" class="text-sm font-bold text-emerald-400">-- นาที</p>
+                                <p id="preview-distance" class="text-[10px] text-brand-light/80 font-mono">-- กม.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 pt-1">
+                            <button id="nav-start-btn" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20">
+                                <i class="fa-solid fa-location-arrow"></i> เริ่มนำทาง
+                            </button>
+                            <button id="nav-cancel-preview-btn" class="flex-1 bg-red-950/60 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/40 font-semibold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-xmark"></i> ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- State 3: Active Navigation ("ขอพิกัดเป็นพักๆ และโชว์ว่าเหลืออีกกี่นาที เส้นทางเป็นไง") -->
+                <div id="nav-step-active" class="hidden space-y-2 animate-fade-in-up">
+                    <div class="bg-gradient-to-r from-emerald-950/70 via-[#0d1824] to-[#0a121c] border border-emerald-500/40 rounded-lg p-2.5 space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                                    <i id="nav-turn-icon" class="fa-solid fa-diamond-turn-right text-sm"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                        <span class="text-[9px] text-emerald-300 font-semibold uppercase tracking-wider">กำลังนำทางสด (ซิงค์อัตโนมัติ)</span>
+                                    </div>
+                                    <p id="nav-next-instruction" class="text-xs font-semibold text-white truncate">กำลังคำนวณทิศทาง...</p>
+                                    <p id="nav-road-status" class="text-[10px] text-brand-light/75 truncate">สภาพเส้นทางปกติ</p>
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0 bg-black/50 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                                <p class="text-[9px] text-brand-light/60">เวลาที่เหลือ</p>
+                                <p id="nav-eta-mins" class="text-sm font-bold text-emerald-400">-- นาที</p>
+                                <p id="nav-rem-dist" class="text-[10px] text-white font-mono">-- กม.</p>
+                            </div>
+                        </div>
+
+                        <!-- Trip Progress Bar (Alerts at 90%) -->
+                        <div class="space-y-1 pt-0.5">
+                            <div class="flex items-center justify-between text-[9px]">
+                                <span class="text-brand-light/70">ความคืบหน้าการเดินทาง (แจ้งเตือนที่ 90%)</span>
+                                <span id="nav-progress-pct" class="font-mono font-semibold text-emerald-300">0%</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-black/60 rounded-full overflow-hidden border border-emerald-500/20">
+                                <div id="nav-progress-fill" class="h-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1 border-t border-white/10 text-[10px] gap-1">
+                            <span id="nav-gps-ping-status" class="text-brand-light/60 truncate">ถึงประมาณ <strong id="nav-arrival-time" class="text-brand-peri">--:--</strong></span>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button id="btn-trigger-showcase" class="px-2 py-1 rounded bg-sky-950/80 hover:bg-sky-500 hover:text-black text-sky-300 border border-sky-500/30 transition text-[9px] font-medium" title="โชว์แผนที่+เรดาร์แทนแผงควบคุม 10 วินาทีแล้วสลับกลับ">
+                                    <i class="fa-solid fa-eye"></i> โชว์แผนที่ 10วิ
+                                </button>
+                                <button id="nav-ping-now-btn" class="px-2 py-1 rounded bg-brand-deep/70 hover:bg-brand-peri hover:text-black text-brand-peri transition text-[9px] font-medium" title="ดึงพิกัดเดี๋ยวนี้">
+                                    <i class="fa-solid fa-rotate"></i> เช็คพิกัด
+                                </button>
+                                <button id="nav-stop-btn" class="px-2 py-1 rounded bg-red-600/80 hover:bg-red-500 text-white transition text-[9px] font-semibold">
+                                    <i class="fa-solid fa-stop mr-0.5"></i> ยกเลิก
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Map + Live Weather Radar Viewport -->
+            <div class="relative flex-1 min-h-[220px] bg-[#05080d] overflow-hidden">
+                <!-- 10-Second Auto Radar Showcase Floating Banner -->
+                <div id="radar-showcase-banner" class="hidden absolute top-2.5 left-2.5 right-12 z-[450] bg-gradient-to-r from-sky-950/95 via-[#0a1628]/95 to-emerald-950/95 backdrop-blur-md border border-sky-400/50 rounded-xl px-2.5 pt-1.5 pb-2 overflow-hidden shadow-2xl animate-fade-in-up">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping shrink-0"></span>
+                            <div class="min-w-0">
+                                <p id="showcase-title" class="text-[10px] font-semibold text-white truncate">📡 แสดงแผนที่ & เรดาร์สภาพอากาศ</p>
+                                <p id="showcase-sub-info" class="text-[9px] text-sky-300 truncate">สลับกลับไปแผงควบคุมใน <strong id="showcase-countdown" class="text-emerald-300 font-mono">10</strong> วินาที</p>
+                            </div>
+                        </div>
+                        <button id="btn-exit-showcase" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 text-[9px] font-medium shrink-0 transition">
+                            แผงควบคุม
+                        </button>
+                    </div>
+                    <!-- Smooth visual countdown progress bar -->
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/50 overflow-hidden">
+                        <div id="showcase-progress-bar" class="h-full bg-gradient-to-r from-sky-400 via-emerald-400 to-brand-peri" style="width: 100%; transition: width 1s linear;"></div>
+                    </div>
+                </div>
+
+                <!-- Weather Alert Country-to-User Zoom Stage HUD -->
+                <div id="radar-zoom-stage-badge" class="hidden absolute bottom-12 left-1/2 -translate-x-1/2 z-[440] bg-[#081326]/95 backdrop-blur-md border border-sky-400/60 text-sky-200 rounded-full px-3 py-1 text-[10px] font-medium shadow-xl flex items-center gap-1.5 pointer-events-none whitespace-nowrap transition-all duration-300">
+                    <i id="radar-zoom-stage-icon" class="fa-solid fa-earth-asia text-sky-400 animate-pulse"></i>
+                    <span id="radar-zoom-stage-text">กำลังสแกนเรดาร์ระดับประเทศ...</span>
+                </div>
+
+                <!-- Leaflet Map with RainViewer Animated Radar + OSRM Route -->
+                <div id="leaflet-radar-map" class="absolute inset-0 w-full h-full z-10 map-theme-dark"></div>
+
+                <!-- Live Windy Weather Radar Clip Iframe -->
+                <iframe id="windy-radar-iframe" class="absolute inset-0 w-full h-full hidden border-0 z-10" allowfullscreen></iframe>
+
+                <!-- Floating Radar Timeline Control Bar (for Map + Radar mode) -->
+                <div id="radar-timeline-bar" class="absolute bottom-2.5 left-2.5 right-2.5 z-[400] bg-[#0a0f18]/90 backdrop-blur border border-brand-deep/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] shadow-xl">
+                    <div class="flex items-center gap-1.5">
+                        <button id="radar-play-btn" class="w-6 h-6 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-300 border border-sky-400/30 flex items-center justify-center transition" title="เล่น/หยุด อนิเมชันเรดาร์เมฆฝน">
+                            <i id="radar-play-icon" class="fa-solid fa-pause text-[9px]"></i>
+                        </button>
+                        <span class="text-sky-300 font-medium flex items-center gap-1">
+                            <i class="fa-solid fa-cloud-rain"></i> เรดาร์เมฆฝน:
+                        </span>
+                        <span id="radar-time-label" class="font-mono text-white">กำลังโหลด...</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-map-style" class="px-2 py-0.5 rounded bg-brand-deep/70 hover:bg-brand-peri/30 text-brand-light border border-brand-peri/30 transition text-[9px]" title="สลับรูปแบบแผนที่">
+                            <i class="fa-solid fa-layer-group mr-0.5"></i> <span id="map-style-label">แผนที่มืด</span>
+                        </button>
+                        <label class="flex items-center gap-1 cursor-pointer select-none">
+                            <input type="checkbox" id="toggle-radar-overlay" checked class="rounded border-brand-deep bg-primary text-sky-400">
+                            <span class="text-brand-light/80">กลุ่มฝน</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel (25% on desktop) -->
+        <aside class="relative w-full md:w-[25%] flex-1 min-h-0 bg-[#050505] flex flex-col overflow-hidden shrink-0 border-l border-brand-deep/30 transition-all duration-300">
             
             <!-- Mode Toggle -->
             <div class="p-3 border-b border-brand-deep/30 flex items-center justify-between shrink-0">
@@ -304,7 +1009,9 @@
                 </label>
                 <div class="flex items-center gap-2">
                     <div id="my-color-dot" class="w-3 h-3 rounded-full bg-brand-peri border border-white/20"></div>
-                    <button id="edit-profile-btn" class="text-[10px] text-brand-peri hover:text-brand-light transition">แก้ไขโปรไฟล์</button>
+                    <button id="edit-profile-btn" class="text-[10px] px-2 py-1 rounded-md bg-[#0d1624] hover:bg-brand-deep/70 border border-brand-peri/30 text-brand-peri hover:text-brand-light transition flex items-center gap-1">
+                        <i class="fa-solid fa-gear"></i> ตั้งค่า & โปรไฟล์
+                    </button>
                 </div>
             </div>
 
@@ -319,7 +1026,7 @@
             </div>
 
             <!-- Scrollable content -->
-            <div class="flex-1 overflow-y-auto p-3 space-y-4 pb-6">
+            <div class="flex-1 min-h-0 overflow-y-auto px-3 pb-4 pt-2 space-y-4">
 
                 <!-- Controls Section -->
                 <div id="sec-ctrl" class=" md:block space-y-3">
@@ -428,6 +1135,27 @@
                         </div>
                     </div>
 
+                    <!-- Weather Radar & GPS Navigation Quick Card -->
+                    <div class="bg-[#0a0a0a]/50 border border-brand-deep/30 rounded-xl p-3 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="text-[10px] text-brand-light/70 uppercase tracking-wider flex items-center gap-1.5 min-w-0 truncate">
+                                <i class="fa-solid fa-satellite-dish text-sky-400 shrink-0"></i>
+                                <span class="truncate">เรดาร์อากาศ & GPS นำทาง</span>
+                            </label>
+                            <span id="sidebar-weather-mini" class="text-[10px] text-sky-300 font-medium truncate shrink-0">ปิดอยู่</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="sidebar-open-radar-btn" class="min-w-0 overflow-hidden bg-[#0d1624] hover:bg-brand-deep/70 border border-sky-500/30 text-sky-300 rounded-lg py-1.5 px-2 text-[11px] font-medium transition flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-cloud-showers-heavy shrink-0"></i>
+                                <span class="truncate">เรดาร์สภาพอากาศ</span>
+                            </button>
+                            <button id="sidebar-open-nav-btn" class="min-w-0 overflow-hidden bg-[#0d1624] hover:bg-brand-deep/70 border border-emerald-500/30 text-emerald-300 rounded-lg py-1.5 px-2 text-[11px] font-medium transition flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-diamond-turn-right shrink-0"></i>
+                                <span class="truncate">GPS นำทาง</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Client Mode Only: Reactions & Danmaku -->
                     <div id="client-controls" class="space-y-3">
                         <div class="bg-[#0a0a0a]/50 border border-brand-deep/30 rounded-xl p-3 space-y-2">
@@ -468,12 +1196,12 @@
                 </div> <!-- End sec-ctrl -->
 
                 <!-- Queue Section -->
-                <div id="sec-queue" class="hidden md:block space-y-2">
-                    <div class="flex items-center justify-between px-1">
+                <div id="sec-queue" class="hidden md:block space-y-2 flex-1">
+                    <div class="sticky top-0 z-10 bg-[#050505]/95 backdrop-blur py-1.5 flex items-center justify-between px-1 border-b border-brand-deep/20">
                         <h3 class="text-[11px] text-brand-peri uppercase tracking-wider font-semibold"><i class="fa-solid fa-list mr-1"></i> คิวถัดไป (<span id="q-count">0</span>)</h3>
                         <button id="clear-btn" class="text-[10px] text-red-400/70 hover:text-red-400 transition">ล้างคิว</button>
                     </div>
-                    <div id="queue-list" class="space-y-1.5 max-h-[250px] overflow-y-auto pr-1">
+                    <div id="queue-list" class="space-y-1.5 pb-2">
                         <p class="text-center text-[10px] text-brand-light/30 py-4">คิวว่างเปล่า</p>
                     </div>
                 </div>
@@ -483,8 +1211,18 @@
                     <div class="px-1">
                         <h3 class="text-[11px] text-brand-peri uppercase tracking-wider font-semibold"><i class="fa-solid fa-users mr-1"></i> ผู้ใช้งานออนไลน์</h3>
                     </div>
-                    <div id="users-list" class="flex flex-wrap gap-1.5 max-h-[150px] overflow-y-auto pr-1">
+                    <div id="users-list" class="flex flex-wrap gap-1.5">
                         <!-- Users will be injected here -->
+                    </div>
+                </div>
+
+                <!-- QR Code (Host Mode Only - Placed in normal layout flow so it never overlaps buttons or queue) -->
+                <div class="pt-2 border-t border-brand-deep/20 flex justify-center">
+                    <div id="qr-container" class="bg-white p-2.5 rounded-xl hidden shadow-xl shadow-black/70 border-2 border-brand-peri flex flex-col items-center cursor-pointer transition-transform duration-200 hover:scale-[1.03]" title="คลิกเพื่อคัดลอกลิงก์">
+                        <div id="qrcode" class="w-[120px] h-[120px] flex items-center justify-center"></div>
+                        <div class="w-[120px] mt-1.5 pt-1 border-t border-slate-200 text-center overflow-hidden flex justify-center">
+                            <span id="url-display" class="text-[9px] text-[#1c2938] font-bold select-all whitespace-nowrap leading-tight block"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -499,6 +1237,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="/app.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/app.js?v=15"></script>
 </body>
 </html>

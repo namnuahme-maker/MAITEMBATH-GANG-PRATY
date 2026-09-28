@@ -244,6 +244,221 @@ app.get('/api/audio-stream/:videoId', async (req, res) => {
   }
 });
 
+app.use(express.json());
+
+// Fallback IP Geolocation endpoint (useful when browser blocks navigator.geolocation over HTTP LAN)
+app.get('/api/ip-location', async (req, res) => {
+  try {
+    const resp = await fetch('http://ip-api.com/json/?fields=status,lat,lon,city,regionName,country', {
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await resp.json();
+    if (data && data.status === 'success' && typeof data.lat === 'number' && typeof data.lon === 'number') {
+      return res.json({
+        lat: data.lat,
+        lon: data.lon,
+        label: [data.city, data.regionName].filter(Boolean).join(', ') || 'ตำแหน่งเครือข่ายปัจจุบัน'
+      });
+    }
+  } catch (e) {
+    // fallback to default Bangkok coordinates if offline
+  }
+  res.json({ lat: 13.7563, lon: 100.5018, label: 'กรุงเทพมหานคร (พิกัดเริ่มต้น)' });
+});
+
+// Thai TTS Audio Proxy endpoint so Host & Clients can always play natural Thai voice alerts even via remote Socket.io events
+app.get('/api/tts-thai', async (req, res) => {
+  const text = String(req.query.text || '').trim().substring(0, 200);
+  if (!text) return res.status(400).end();
+  try {
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=th&client=tw-ob&q=${encodeURIComponent(text)}`;
+    const resp = await fetch(ttsUrl, {
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://translate.google.com/'
+      }
+    });
+    if (!resp.ok) throw new Error(`TTS status ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('TTS proxy error:', err.message);
+    res.status(502).end();
+  }
+});
+
+// Helper: Parse coordinates "lat, lon" if valid
+function parseCoordPair(str) {
+  if (!str || typeof str !== 'string') return null;
+  const m = str.trim().match(/^(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lon = parseFloat(m[2]);
+  if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return { lat, lon };
+  return null;
+}
+
+async function geocodePlaceName(query) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=th`;
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(6000),
+    headers: { 'User-Agent': 'MaitembathGangParty/1.0' }
+  });
+  const list = await resp.json();
+  if (Array.isArray(list) && list.length > 0) {
+    return {
+      lat: parseFloat(list[0].lat),
+      lon: parseFloat(list[0].lon),
+      name: list[0].display_name.split(',').slice(0, 3).join(', ')
+    };
+  }
+  return null;
+}
+
+async function reverseGeocodeCoord(lat, lon) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&accept-language=th`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      headers: { 'User-Agent': 'MaitembathGangParty/1.0' }
+    });
+    const data = await resp.json();
+    if (data && data.display_name) {
+      return data.display_name.split(',').slice(0, 3).join(', ');
+    }
+  } catch (e) {}
+  return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+}
+
+// Resolve Google Maps URL (short or full), coordinates, or place name into destination coordinates
+app.post('/api/resolve-route', async (req, res) => {
+  const rawInput = (req.body?.input || '').trim();
+  if (!rawInput) {
+    return res.status(400).json({ error: 'กรุณาวางลิงก์เส้นทาง Google Maps หรือระบุสถานที่ปลายทาง' });
+  }
+
+  try {
+    // 1. Direct coordinates "13.7563, 100.5018"
+    const directCoord = parseCoordPair(rawInput);
+    if (directCoord) {
+      const name = await reverseGeocodeCoord(directCoord.lat, directCoord.lon);
+      return res.json({ lat: directCoord.lat, lon: directCoord.lon, name });
+    }
+
+    let expandedUrl = rawInput;
+    let htmlSnippet = '';
+
+    // 2. If it's a URL, follow redirects (e.g. maps.app.goo.gl, goo.gl/maps)
+    if (/^https?:\/\//i.test(rawInput)) {
+      try {
+        const resp = await fetch(rawInput, {
+          redirect: 'follow',
+          signal: AbortSignal.timeout(7000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+          }
+        });
+        if (resp && resp.url) expandedUrl = resp.url;
+        const text = await resp.text();
+        htmlSnippet = text.slice(0, 50000);
+        // Check if Google returned an HTML redirect with full maps URL inside
+        const metaUrlMatch = htmlSnippet.match(/https:\/\/(?:www\.)?google\.[a-z.]+\/maps[^\s"'<>\\]+/i);
+        if (metaUrlMatch && (expandedUrl.includes('goo.gl') || expandedUrl.includes('maps.app'))) {
+          expandedUrl = metaUrlMatch[0].replace(/&amp;/g, '&');
+        }
+      } catch (e) {
+        // continue with original URL string
+      }
+    }
+
+    const decodedUrl = decodeURIComponent(expandedUrl.replace(/\+/g, ' '));
+    let destCoord = null;
+    let candidateName = null;
+
+    // 3. Check URL query parameters: destination=, daddr=, q=, query=
+    try {
+      const parsed = new URL(expandedUrl);
+      const destParam = parsed.searchParams.get('destination') || parsed.searchParams.get('daddr') || parsed.searchParams.get('q') || parsed.searchParams.get('query');
+      if (destParam) {
+        const c = parseCoordPair(destParam);
+        if (c) destCoord = c;
+        else candidateName = destParam;
+      }
+    } catch (e) {}
+
+    // 4. Extract /dir/Origin/Destination/... or /place/PlaceName/...
+    if (!candidateName) {
+      const dirMatch = decodedUrl.match(/\/maps\/dir\/([^/?#]+)\/([^/?#@]+)/i);
+      if (dirMatch && dirMatch[2]) {
+        const destSeg = dirMatch[2].trim();
+        const c = parseCoordPair(destSeg);
+        if (c) destCoord = c;
+        else if (!/^data=/i.test(destSeg)) candidateName = destSeg;
+      }
+      const placeMatch = decodedUrl.match(/\/maps\/place\/([^/?#@]+)/i);
+      if (placeMatch && placeMatch[1]) {
+        const placeSeg = placeMatch[1].trim();
+        const c = parseCoordPair(placeSeg);
+        if (c) destCoord = c;
+        else candidateName = placeSeg;
+      }
+    }
+
+    // 5. Extract exact pin coordinates !3dLAT!4dLON or !2dLON!3dLAT from Google Maps data= parameter (last pin = destination)
+    if (!destCoord) {
+      const pin3d4d = [...expandedUrl.matchAll(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/g)];
+      if (pin3d4d.length > 0) {
+        const last = pin3d4d[pin3d4d.length - 1];
+        destCoord = { lat: parseFloat(last[1]), lon: parseFloat(last[2]) };
+      } else {
+        const pin2d3d = [...expandedUrl.matchAll(/!2d(-?\d+\.\d+)!3d(-?\d+\.\d+)/g)];
+        if (pin2d3d.length > 0) {
+          const last = pin2d3d[pin2d3d.length - 1];
+          destCoord = { lat: parseFloat(last[2]), lon: parseFloat(last[1]) };
+        }
+      }
+    }
+
+    // 6. Extract @LAT,LON viewport coordinates from URL
+    if (!destCoord) {
+      const atMatch = expandedUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) {
+        destCoord = { lat: parseFloat(atMatch[1]), lon: parseFloat(atMatch[2]) };
+      }
+    }
+
+    // 7. If we have a candidate place name but no coordinates yet, geocode the place name
+    if (!destCoord && candidateName) {
+      const geo = await geocodePlaceName(candidateName);
+      if (geo) return res.json(geo);
+    }
+
+    // 8. If we have coordinates, resolve or clean the place name
+    if (destCoord && !isNaN(destCoord.lat) && !isNaN(destCoord.lon)) {
+      const displayName = candidateName || await reverseGeocodeCoord(destCoord.lat, destCoord.lon);
+      return res.json({
+        lat: destCoord.lat,
+        lon: destCoord.lon,
+        name: displayName
+      });
+    }
+
+    // 9. Finally, if user typed a place name directly (not a URL), geocode it
+    if (!/^https?:\/\//i.test(rawInput)) {
+      const geo = await geocodePlaceName(rawInput);
+      if (geo) return res.json(geo);
+    }
+
+    return res.status(404).json({ error: 'ไม่พบพิกัดปลายทางจากลิงก์หรือข้อความนี้ กรุณาลองวางลิงก์ Google Maps เต็ม หรือพิมพ์ชื่อสถานที่' });
+  } catch (err) {
+    console.error('Resolve route error:', err.message);
+    return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการประมวลผลลิงก์เส้นทาง' });
+  }
+});
+
 // Innertube instance for search & YouTube metadata
 let innertube = null;
 async function getInnertube() {
@@ -262,6 +477,21 @@ let state = {
   duration: 0,
   volume: 50,
   quality: 'max'
+};
+
+// Collaborative Weather Radar & GPS Navigation State (synced across all clients)
+let navState = {
+  panelOpen: false,
+  viewMode: 'map',           // 'map' | 'windy'
+  step: 'input',             // 'input' | 'preview' | 'active'
+  routeInputText: '',
+  userCoords: null,          // { lat, lon, label }
+  weatherInfo: null,         // { temp, humidity, wind, rainProb, code, text, rainAlert, advice }
+  destination: null,         // { lat, lon, name, distanceKm, durationMin, initialDistanceKm, summary }
+  liveRoute: null,           // { remKm, etaMins, arrivalTime, instructionText, roadStatus, progressPct, geometry }
+  hasAlerted90Pct: false,
+  controllerName: '',
+  updatedAt: 0
 };
 
 let connectedUsers = {}; // { socketId: { name, color } }
@@ -486,6 +716,7 @@ io.on('connection', (socket) => {
 
   socket.emit('init', {
     state: state,
+    navState: navState,
     localIp: getLocalIp(),
     port: PORT,
     users: connectedUsers
@@ -787,6 +1018,29 @@ io.on('connection', (socket) => {
       nickname,
       color,
       tts: Boolean(data.tts)
+    });
+  });
+
+  // Real-time Weather Radar & GPS Navigation Sync across all connected clients
+  socket.on('sync-nav-state', (patch) => {
+    if (!patch || typeof patch !== 'object') return;
+    navState = {
+      ...navState,
+      ...patch,
+      updatedAt: Date.now()
+    };
+    io.emit('nav-state-update', {
+      navState,
+      senderId: socket.id
+    });
+  });
+
+  socket.on('trigger-nav-alert', (alertPayload) => {
+    if (!alertPayload || typeof alertPayload !== 'object') return;
+    io.emit('nav-alert-broadcast', {
+      ...alertPayload,
+      senderId: socket.id,
+      timestamp: Date.now()
     });
   });
 
