@@ -1,0 +1,15 @@
+{
+  "name": "collaborative-queue-player",
+  "version": "1.0.0",
+  "description": "Collaborative queue video player with remote control capability",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "youtubei.js": "^18.1.0"
+  }
+}
