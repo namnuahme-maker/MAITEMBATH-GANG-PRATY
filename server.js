@@ -20,14 +20,47 @@ const MAX_ALT_RETRIES = 10;
 let isFindingAlt = false;
 
 // Cache for direct video stream URLs (cacheKey -> { videoUrl, audioUrl, qualityLabel, expiresAt })
+const MAX_STREAM_CACHE_SIZE = 200;
 const streamUrlCache = new Map();
 const pendingExtractions = new Map();
+
+function pruneStreamUrlCache() {
+  const now = Date.now();
+  for (const [key, entry] of streamUrlCache.entries()) {
+    if (!entry || now >= entry.expiresAt) {
+      streamUrlCache.delete(key);
+    }
+  }
+  while (streamUrlCache.size > MAX_STREAM_CACHE_SIZE) {
+    const oldestKey = streamUrlCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    streamUrlCache.delete(oldestKey);
+  }
+}
+
+setInterval(pruneStreamUrlCache, 15 * 60 * 1000).unref();
 
 function getQualityHeight(quality) {
   if (quality === 'hd720') return { height: 720, label: '720p HD' };
   if (quality === 'large') return { height: 480, label: '480p' };
   if (quality === 'medium') return { height: 360, label: '360p' };
-  return { height: 1080, label: '1080p HD' };
+  if (quality === 'hd1080') return { height: 1080, label: '1080p HD' };
+  return { height: 1440, label: '1080p HD' };
+}
+
+function detectQualityLabelFromUrl(videoUrl, hasSeparateAudio, fallbackLabel = '1080p HD') {
+  if (!videoUrl || typeof videoUrl !== 'string') return fallbackLabel;
+  const m = videoUrl.match(/[?&]itag=(\d+)/);
+  if (m) {
+    const itag = parseInt(m[1], 10);
+    if ([313, 315, 401, 266, 305].includes(itag)) return '4K UHD';
+    if ([271, 308, 400, 264, 304].includes(itag)) return '1440p 2K';
+    if ([137, 248, 299, 303, 399, 614, 270].includes(itag)) return '1080p HD';
+    if ([136, 247, 298, 302, 398, 22, 609, 232].includes(itag)) return '720p HD';
+    if ([135, 244, 397, 231, 606].includes(itag)) return '480p';
+    if ([18, 134, 243, 396, 230, 605].includes(itag)) return '360p';
+  }
+  return hasSeparateAudio ? fallbackLabel : '360p';
 }
 
 function runYtDlpGetUrls(args) {
@@ -51,11 +84,14 @@ async function resolveDirectStreamInfo(videoId, quality = 'max') {
   }
 
   const { height, label } = getQualityHeight(quality);
-  const cacheKey = `${videoId}:${height}`;
+  const cacheKey = `${videoId}:${quality || 'max'}`;
 
   const cached = streamUrlCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached;
+  if (cached) {
+    if (Date.now() < cached.expiresAt) {
+      return cached;
+    }
+    streamUrlCache.delete(cacheKey);
   }
 
   if (pendingExtractions.has(cacheKey)) {
@@ -64,11 +100,39 @@ async function resolveDirectStreamInfo(videoId, quality = 'max') {
 
   const extractPromise = (async () => {
     const targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const formatSelector = height <= 360
-      ? '18/best[ext=mp4][acodec!=none][vcodec!=none]/best'
-      : `bestvideo[height<=${height}][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/18/best`;
+    let formatSelector;
+    if (height <= 360) {
+      formatSelector = '18/best[height<=360][ext=mp4][protocol^=http][acodec!=none][vcodec!=none]/bestvideo[height<=360][protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]';
+    } else if (quality === 'max') {
+      // Prioritize 1080p avc1/mp4 (universal hardware decode, zero stutter), then up to 1440p/1080p VP9/AV1 over direct HTTP
+      formatSelector = [
+        'bestvideo[height=1080][ext=mp4][vcodec^=avc1][protocol^=http]+bestaudio[ext=m4a][protocol^=http]',
+        'bestvideo[height<=1440][height>=1080][protocol^=http]+bestaudio[protocol^=http]',
+        'bestvideo[height<=1080][ext=mp4][protocol^=http]+bestaudio[ext=m4a][protocol^=http]',
+        'bestvideo[height<=1080][protocol^=http]+bestaudio[protocol^=http]',
+        'bestvideo[height<=1080]+bestaudio',
+        '22/18/best'
+      ].join('/');
+    } else {
+      formatSelector = [
+        `bestvideo[height<=${height}][ext=mp4][vcodec^=avc1][protocol^=http]+bestaudio[ext=m4a][protocol^=http]`,
+        `bestvideo[height<=${height}][ext=mp4][protocol^=http]+bestaudio[ext=m4a][protocol^=http]`,
+        `bestvideo[height<=${height}][protocol^=http]+bestaudio[protocol^=http]`,
+        `bestvideo[height<=${height}]+bestaudio`,
+        '22/18/best'
+      ].join('/');
+    }
 
     const argSets = [
+      // 1. Fast native extraction (~2s via visionos/web client) with direct HTTP 1080p+ streams
+      [
+        '--no-playlist',
+        '--no-warnings',
+        '-g',
+        '-f', formatSelector,
+        targetUrl
+      ],
+      // 2. Fallback with Node JS runtime & mweb/web client keeping full HD formatSelector
       [
         '--js-runtimes', 'node',
         '--remote-components', 'ejs:github',
@@ -79,14 +143,13 @@ async function resolveDirectStreamInfo(videoId, quality = 'max') {
         '-f', formatSelector,
         targetUrl
       ],
+      // 3. Final fallback
       [
         '--js-runtimes', 'node',
-        '--remote-components', 'ejs:github',
-        '--extractor-args', 'youtube:player_client=default;player_skip=webpage',
         '--no-playlist',
         '--no-warnings',
         '-g',
-        '-f', 'best[ext=mp4][acodec!=none][vcodec!=none]/18/best',
+        '-f', formatSelector,
         targetUrl
       ]
     ];
@@ -96,12 +159,15 @@ async function resolveDirectStreamInfo(videoId, quality = 'max') {
       try {
         const urls = await runYtDlpGetUrls(args);
         if (urls && urls.length > 0) {
+          const hasSeparateAudio = urls.length > 1;
+          const detectedLabel = detectQualityLabelFromUrl(urls[0], hasSeparateAudio, label);
           const info = {
             videoUrl: urls[0],
-            audioUrl: urls.length > 1 ? urls[1] : null,
-            qualityLabel: urls.length > 1 ? label : '360p',
+            audioUrl: hasSeparateAudio ? urls[1] : null,
+            qualityLabel: detectedLabel,
             expiresAt: Date.now() + 2 * 60 * 60 * 1000 // cache 2 hours
           };
+          pruneStreamUrlCache();
           streamUrlCache.set(cacheKey, info);
           return info;
         }
@@ -214,9 +280,8 @@ app.get('/api/video-stream/:videoId', async (req, res) => {
     return res.status(400).send('Invalid video ID');
   }
   try {
-    const { height } = getQualityHeight(quality);
     const info = await resolveDirectStreamInfo(videoId, quality);
-    proxyVideoStream(info.videoUrl, req, res, `${videoId}:${height}`);
+    proxyVideoStream(info.videoUrl, req, res, `${videoId}:${quality || 'max'}`);
   } catch (err) {
     console.error(`Failed to resolve direct video stream for ${videoId}:`, err.message);
     if (!res.headersSent) {
@@ -233,9 +298,8 @@ app.get('/api/audio-stream/:videoId', async (req, res) => {
     return res.status(400).send('Invalid video ID');
   }
   try {
-    const { height } = getQualityHeight(quality);
     const info = await resolveDirectStreamInfo(videoId, quality);
-    proxyVideoStream(info.audioUrl || info.videoUrl, req, res, `${videoId}:${height}`);
+    proxyVideoStream(info.audioUrl || info.videoUrl, req, res, `${videoId}:${quality || 'max'}`);
   } catch (err) {
     console.error(`Failed to resolve direct audio stream for ${videoId}:`, err.message);
     if (!res.headersSent) {
@@ -288,6 +352,157 @@ app.get('/api/tts-thai', async (req, res) => {
     console.error('TTS proxy error:', err.message);
     res.status(502).end();
   }
+});
+
+// Cache for Synced Lyrics (videoId -> { found, synced, lines, trackName, artistName })
+const lyricsCache = new Map();
+
+function cleanSongTitleForLyrics(rawTitle = '', rawAuthor = '') {
+  let title = String(rawTitle || '')
+    .replace(/[\(\[\{【『].*?[\)\]\}】』]/g, ' ')
+    .replace(/(?:official\s*(?:music\s*)?(?:video|mv|audio|visualizer|lyric\s*video|lyrics)|mv|คาราโอเกะ|karaoke|instrumental|backing\s*track|full\s*hd|4k)/gi, ' ')
+    .replace(/(?:feat\.?|ft\.?|prod\.?\s*by)\s+[^-|•|]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Split by pipe or bullet if present (usually "Song Name - Artist | Official MV")
+  if (title.includes('|')) {
+    title = title.split('|')[0].trim();
+  }
+  if (title.includes('•')) {
+    title = title.split('•')[0].trim();
+  }
+
+  let artist = String(rawAuthor || '')
+    .replace(/-\s*Topic$/i, '')
+    .replace(/(?:official|channel|vevo|music|records|entertainment|thailand)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/^(youtube|spotify|auto-dj)$/i.test(artist)) artist = '';
+
+  let songOnly = title;
+  if (title.includes(' - ')) {
+    const parts = title.split(' - ').map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      songOnly = parts[0];
+      if (!artist) artist = parts[1];
+    }
+  }
+
+  return {
+    fullQuery: [songOnly, artist].filter(Boolean).join(' ').trim() || title,
+    songOnly: songOnly || title,
+    artist,
+    cleanTitle: songOnly || title,
+    cleanAuthor: artist
+  };
+}
+
+function parseLrcText(lrcText) {
+  if (!lrcText || typeof lrcText !== 'string') return [];
+  const lines = [];
+  const rawLines = lrcText.split(/\r?\n/);
+  const timeReg = /\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g;
+
+  for (const raw of rawLines) {
+    const matches = [...raw.matchAll(timeReg)];
+    if (matches.length === 0) continue;
+    const text = raw.replace(timeReg, '').trim();
+    if (!text) continue;
+    for (const m of matches) {
+      const mins = parseInt(m[1], 10);
+      const secs = parseInt(m[2], 10);
+      const msStr = m[3] ? m[3].padEnd(3, '0') : '0';
+      const timeSec = mins * 60 + secs + parseInt(msStr, 10) / 1000;
+      lines.push({ time: Number(timeSec.toFixed(2)), text });
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time);
+}
+
+app.get('/api/lyrics', async (req, res) => {
+  const videoId = String(req.query.videoId || '').trim();
+  const title = String(req.query.title || '').trim();
+  const author = String(req.query.author || '').trim();
+  const duration = parseFloat(req.query.duration) || 210;
+
+  if (!title) {
+    return res.json({ found: false, lines: [] });
+  }
+
+  const cacheKey = `${videoId || title}:${Math.round(duration)}`;
+  if (lyricsCache.has(cacheKey)) {
+    return res.json(lyricsCache.get(cacheKey));
+  }
+
+  const { fullQuery, songOnly } = cleanSongTitleForLyrics(title, author);
+  const queriesToTry = [...new Set([fullQuery, songOnly].filter(Boolean))];
+
+  try {
+    for (const q of queriesToTry) {
+      const url = `https://lrclib.net/api/search?q=${encodeURIComponent(q)}`;
+      const resp = await fetch(url, {
+        signal: AbortSignal.timeout(5500),
+        headers: { 'User-Agent': 'MaitembathGangParty/1.0' }
+      });
+      if (!resp.ok) continue;
+      const list = await resp.json();
+      if (!Array.isArray(list) || list.length === 0) continue;
+
+      // Prefer item with syncedLyrics
+      const syncedItem = list.find(item => item && typeof item.syncedLyrics === 'string' && item.syncedLyrics.trim());
+      if (syncedItem) {
+        const parsedLines = parseLrcText(syncedItem.syncedLyrics);
+        if (parsedLines.length > 0) {
+          const result = {
+            found: true,
+            synced: true,
+            trackName: syncedItem.trackName || songOnly,
+            artistName: syncedItem.artistName || author,
+            lines: parsedLines
+          };
+          if (lyricsCache.size >= 100) {
+            lyricsCache.delete(lyricsCache.keys().next().value);
+          }
+          lyricsCache.set(cacheKey, result);
+          return res.json(result);
+        }
+      }
+
+      // Fallback to plainLyrics distributed across track duration
+      const plainItem = list.find(item => item && typeof item.plainLyrics === 'string' && item.plainLyrics.trim());
+      if (plainItem) {
+        const rawTextLines = plainItem.plainLyrics
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(Boolean);
+        if (rawTextLines.length > 0) {
+          const effectiveDur = Math.max(90, duration - 12);
+          const stepSec = effectiveDur / rawTextLines.length;
+          const approxLines = rawTextLines.map((text, idx) => ({
+            time: Number((6 + idx * stepSec).toFixed(2)),
+            text
+          }));
+          const result = {
+            found: true,
+            synced: false,
+            trackName: plainItem.trackName || songOnly,
+            artistName: plainItem.artistName || author,
+            lines: approxLines
+          };
+          if (lyricsCache.size >= 100) {
+            lyricsCache.delete(lyricsCache.keys().next().value);
+          }
+          lyricsCache.set(cacheKey, result);
+          return res.json(result);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Lyrics lookup error:', err.message);
+  }
+
+  return res.json({ found: false, lines: [] });
 });
 
 // Helper: Parse coordinates "lat, lon" if valid
@@ -476,7 +691,180 @@ let state = {
   currentTime: 0,
   duration: 0,
   volume: 50,
-  quality: 'max'
+  quality: 'max',
+  autoDjEnabled: true,
+  autoDjMode: 'khlerm',
+  autoDjCustomQuery: ''
+};
+
+// Auto-DJ Mode Presets & Recently Played History (to prevent repeating tracks)
+let isSelectingAutoDj = false;
+let lastPlayedVideoInfo = null;
+const recentPlayedIds = [];
+
+function recordPlayedVideo(videoObj) {
+  if (!videoObj || !videoObj.videoId) return;
+  lastPlayedVideoInfo = {
+    videoId: videoObj.videoId,
+    title: videoObj.originalTitle || videoObj.title || '',
+    author: videoObj.author || ''
+  };
+  const idx = recentPlayedIds.indexOf(videoObj.videoId);
+  if (idx !== -1) recentPlayedIds.splice(idx, 1);
+  recentPlayedIds.push(videoObj.videoId);
+  if (recentPlayedIds.length > 60) recentPlayedIds.shift();
+}
+
+const AUTO_DJ_MODES = {
+  khlerm: {
+    label: '🌙 เคลิ้มๆ ลอยๆ (Chill & Dreamy)',
+    shortLabel: 'โหมดเคลิ้มๆ',
+    color: '#a78bfa',
+    seeds: [
+      'DEPT Official MV',
+      'YENTED Official Audio',
+      'Safeplanet Official MV',
+      'POLYCAT Official MV',
+      'Anatomy Rabbit Official',
+      'Jeff Satur Official MV',
+      'PUN Official MV',
+      'The TOYS Official MV',
+      'Bowkylion Official MV',
+      'Fellow Fellow Official MV',
+      'Violette Wautier Official',
+      'NONT TANONT Official MV',
+      'Tilly Birds Official MV',
+      'Moving and Cut Official',
+      'Whal & Dolph Official',
+      'TELEx TELEXs Official',
+      'Patrickananda Official',
+      'HYBS Official Audio',
+      'WIM Official Audio'
+    ]
+  },
+  similar: {
+    label: '🎯 อิงตามเพลงล่าสุด (Smart Match)',
+    shortLabel: 'ตามเพลงล่าสุด',
+    color: '#38bdf8',
+    seeds: [
+      'Three Man Down Official MV',
+      'Tilly Birds Official MV',
+      'NONT TANONT Official MV',
+      'Jeff Satur Official MV',
+      'Bowkylion Official MV',
+      'Fellow Fellow Official MV',
+      'The TOYS Official MV',
+      'PUN Official MV'
+    ]
+  },
+  indie_thai: {
+    label: '🎸 อินดี้/ป๊อปไทยฮิต (Thai Pop & Indie)',
+    shortLabel: 'อินดี้/ป๊อปไทย',
+    color: '#60a5fa',
+    seeds: [
+      'Three Man Down Official MV',
+      'Tilly Birds Official MV',
+      'Tattoo Colour Official MV',
+      'Paper Planes Official MV',
+      'Only Monday Official MV',
+      'Cocktail Official MV',
+      'Slot Machine Official MV',
+      'Scrubb Official MV',
+      'Potato Official MV',
+      'Paradox Official MV',
+      'Billkin Official MV',
+      'INK WARUNTORN Official MV',
+      '4EVE Official MV',
+      'Lomosonic Official MV'
+    ]
+  },
+  acoustic_cafe: {
+    label: '☕ อะคูสติกฟังสบาย (Acoustic & Cafe)',
+    shortLabel: 'อะคูสติกชิลๆ',
+    color: '#fbbf24',
+    seeds: [
+      'Serious Bacon Official MV',
+      'Scrubb Official Audio',
+      'Ink Waruntorn Official MV',
+      'Earth Patravee Official',
+      'Whal & Dolph Official',
+      'Fellow Fellow ดาวหางฮัลเลย์ Official',
+      'No One Else Official MV',
+      'Mirrr Official MV',
+      'Sarah Salola Official',
+      'Bell Warisara Official',
+      'Rooftop Official MV'
+    ]
+  },
+  party_dance: {
+    label: '🔥 สายตี้แดนซ์มันส์ๆ (Party & Dance)',
+    shortLabel: 'สายตี้แดนซ์',
+    color: '#f472b6',
+    seeds: [
+      'Joey Boy Official MV',
+      'F.HERO Official MV',
+      'URBOYTJ Official MV',
+      'YOUNGOHM Official MV',
+      'Pok Mindset Official MV',
+      'แจ๊ส สปุ๊กนิค ปาปิยอง กุ๊กกุ๊ก Official',
+      'TIMETHAI Official MV',
+      'MILLI Official MV',
+      'SPRITE Official MV',
+      'เพลงแดนซ์สายตี้ มันส์ๆ'
+    ]
+  },
+  retro_90s: {
+    label: '📼 ย้อนยุค 90s-2000s (Retro Hits)',
+    shortLabel: 'ย้อนยุค 90s-2000s',
+    color: '#fb923c',
+    seeds: [
+      'Silly Fools Official Audio',
+      'Bodyslam เพลงฮิต Official',
+      'Big Ass Official MV',
+      'Loso Official Audio',
+      'Moderndog Official',
+      'Clash เพลงฮิต Official',
+      'Da Endorphine Official',
+      'D2B Official Audio',
+      'Pru ทุกสิ่ง Official',
+      'กะลา Official Audio',
+      'Labanoon Official MV'
+    ]
+  },
+  inter_chill: {
+    label: '🌎 สากลเคลิ้มๆ (Global R&B / Lofi)',
+    shortLabel: 'สากลเคลิ้มๆ',
+    color: '#34d399',
+    seeds: [
+      'keshi Official Audio',
+      'Joji Official Video',
+      'The Weeknd Official Video',
+      'Honne Official Video',
+      'LANY Official Video',
+      'Lauv Official Audio',
+      'Bruno Mars Official Video',
+      'Jeremy Zucker Official Video',
+      'Daniel Caesar Official Audio',
+      'Cigarettes After Sex Official',
+      'Post Malone Official Video'
+    ]
+  },
+  lukthung_party: {
+    label: '🍻 ลูกทุ่งอินดี้/สายม่วน (Lukthung Party)',
+    shortLabel: 'ลูกทุ่งสายม่วน',
+    color: '#f87171',
+    seeds: [
+      'โจอี้ ภูวศิษฐ์ Official MV',
+      'ก้อง ห้วยไร่ Official MV',
+      'มนต์แคน แก่นคูน Official MV',
+      'ลำไย ไหทองคำ Official MV',
+      'เบิ้ล ปทุมราช Official MV',
+      'บอย พนมไพร Official MV',
+      'มีนตรา อินทิรา Official MV',
+      'ปรีชา ปัดภัย Official MV',
+      'เต๊ะ ตระกูลตอ Official MV'
+    ]
+  }
 };
 
 // Collaborative Weather Radar & GPS Navigation State (synced across all clients)
@@ -489,13 +877,15 @@ let navState = {
   weatherInfo: null,         // { temp, humidity, wind, rainProb, code, text, rainAlert, advice }
   destination: null,         // { lat, lon, name, distanceKm, durationMin, initialDistanceKm, summary }
   liveRoute: null,           // { remKm, etaMins, arrivalTime, instructionText, roadStatus, progressPct, geometry }
+  routeWeatherAhead: null,   // { points: [{ label, pct, temp, rainProb, code, text, icon, isRainy }], hasRainAhead, summary }
   hasAlerted90Pct: false,
   controllerName: '',
   updatedAt: 0
 };
 
+let isSwitchingKaraoke = false;
 let connectedUsers = {}; // { socketId: { name, color } }
-const clientRateLimits = new Map(); // socket.id -> { lastDanmaku: timestamp, lastReaction: timestamp }
+const clientRateLimits = new Map(); // socket.id -> { lastDanmaku: timestamp, lastReaction: timestamp, lastSoundboard: timestamp }
 
 // Helper: Get local network IP address (prioritizing physical Wi-Fi/Ethernet)
 function getLocalIp() {
@@ -691,20 +1081,140 @@ function getYoutubeMetadata(videoId) {
   });
 }
 
+async function triggerAutoDjNextTrack(forcePlay = false) {
+  if (isSelectingAutoDj) return;
+  if (!forcePlay && (!state.autoDjEnabled || state.queue.length > 0 || state.currentVideo)) return;
+
+  isSelectingAutoDj = true;
+  try {
+    const modeKey = AUTO_DJ_MODES[state.autoDjMode] ? state.autoDjMode : 'khlerm';
+    const modeCfg = AUTO_DJ_MODES[modeKey];
+    const customQuery = (state.autoDjCustomQuery || '').trim();
+
+    let searchQuery = '';
+    if (customQuery) {
+      const suffixes = ['Official MV', 'Official Audio', 'เพลง', ''];
+      const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+      searchQuery = `${customQuery} ${suffix}`.trim();
+    } else if (modeKey === 'similar' && lastPlayedVideoInfo) {
+      const cleanAuthor = (lastPlayedVideoInfo.author || '')
+        .replace(/-\s*Topic$/i, '')
+        .replace(/Official|Channel|VEVO|Music|Records/gi, '')
+        .trim();
+      const cleanTitle = (lastPlayedVideoInfo.title || '')
+        .replace(/[\(\[\{【『].*?[\)\]\}】』]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleanAuthor && !/^(youtube|spotify)$/i.test(cleanAuthor) && Math.random() < 0.7) {
+        searchQuery = `${cleanAuthor} Official MV`;
+      } else if (cleanTitle) {
+        const titlePrefix = cleanTitle.split(/[-|–—]/)[0].trim();
+        searchQuery = `${titlePrefix} Official Audio`;
+      }
+    }
+
+    if (!searchQuery) {
+      const seeds = modeCfg.seeds;
+      searchQuery = seeds[Math.floor(Math.random() * seeds.length)];
+    }
+
+    const yt = await getInnertube();
+    const search = await yt.search(searchQuery);
+    const videos = Array.isArray(search?.videos) ? search.videos : [];
+
+    // Filter out already played videos and long 1-hour compilations / very short clips
+    const isGoodSingleTrack = (v) => {
+      if (!v || typeof v.id !== 'string' || v.id.length !== 11) return false;
+      if (recentPlayedIds.includes(v.id)) return false;
+      const t = v.title?.text || v.title?.runs?.[0]?.text || '';
+      if (/รวมเพลง|1\s*ชั่วโมง|2\s*ชั่วโมง|1\s*hour|nonstop|full\s*album|ยาวๆ/i.test(t)) return false;
+      const durSec = v.duration?.seconds;
+      if (typeof durSec === 'number' && durSec > 0 && (durSec < 85 || durSec > 540)) return false;
+      return true;
+    };
+
+    let candidates = videos.filter(isGoodSingleTrack);
+    if (candidates.length === 0) {
+      candidates = videos.filter(v => v && typeof v.id === 'string' && v.id.length === 11 && !recentPlayedIds.includes(v.id));
+    }
+    if (candidates.length === 0) {
+      candidates = videos.filter(v => v && typeof v.id === 'string' && v.id.length === 11);
+    }
+    if (candidates.length === 0) return;
+
+    const topPool = candidates.slice(0, Math.min(candidates.length, 6));
+    const chosen = topPool[Math.floor(Math.random() * topPool.length)];
+    const trackTitle = chosen.title?.text || chosen.title?.runs?.[0]?.text || searchQuery;
+    const trackAuthor = chosen.author?.name || 'YouTube';
+    const badgeLabel = customQuery
+      ? `Auto-DJ (${customQuery})`
+      : `Auto-DJ (${modeCfg.shortLabel})`;
+
+    const autoTrack = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      url: `https://www.youtube.com/watch?v=${chosen.id}`,
+      videoId: chosen.id,
+      title: trackTitle,
+      author: trackAuthor,
+      thumbnail: null,
+      source: 'autodj',
+      addedBy: badgeLabel,
+      color: modeCfg.color || '#a78bfa',
+      isAutoDj: true,
+      autoDjMode: modeKey
+    };
+
+    if (!forcePlay && (state.currentVideo || state.queue.length > 0 || !state.autoDjEnabled)) {
+      return;
+    }
+
+    if (!state.currentVideo || (forcePlay && state.currentVideo.isAutoDj)) {
+      state.currentVideo = autoTrack;
+      state.isPlaying = true;
+      state.currentTime = 0;
+      state.duration = 0;
+      recordPlayedVideo(autoTrack);
+      prefetchVideoStreamUrl(autoTrack.videoId);
+      broadcastState();
+      io.emit('show-toast-broadcast', `🎧 ${badgeLabel} เลือกเพลง: ${trackTitle}`);
+    } else if (forcePlay) {
+      state.queue.unshift(autoTrack);
+      recordPlayedVideo(autoTrack);
+      broadcastState();
+      io.emit('show-toast-broadcast', `🎧 เพิ่มเพลง ${badgeLabel} เป็นคิวถัดไป: ${trackTitle}`);
+    }
+  } catch (err) {
+    console.error('Auto-DJ selection error:', err.message);
+  } finally {
+    isSelectingAutoDj = false;
+  }
+}
+
 function playNext() {
+  if (state.currentVideo) {
+    recordPlayedVideo(state.currentVideo);
+  }
   if (state.queue.length > 0) {
     state.currentVideo = state.queue.shift();
     state.isPlaying = true;
     state.currentTime = 0;
     state.duration = 0;
+    recordPlayedVideo(state.currentVideo);
     prefetchVideoStreamUrl(state.currentVideo.videoId);
+    if (state.queue[0] && state.queue[0].videoId) {
+      prefetchVideoStreamUrl(state.queue[0].videoId);
+    }
+    broadcastState();
   } else {
     state.currentVideo = null;
     state.isPlaying = false;
     state.currentTime = 0;
     state.duration = 0;
+    broadcastState();
+    if (state.autoDjEnabled) {
+      triggerAutoDjNextTrack(false);
+    }
   }
-  broadcastState();
 }
 
 function broadcastState() {
@@ -776,6 +1286,9 @@ io.on('connection', (socket) => {
               addedBySocketId: socket.id
             });
             addedCount++;
+            if (state.queue.length <= 2) {
+              prefetchVideoStreamUrl(match.videoId);
+            }
 
             if (!state.currentVideo) playNext();
             else broadcastState();
@@ -824,6 +1337,9 @@ io.on('connection', (socket) => {
         color: color,
         addedBySocketId: socket.id
       });
+      if (state.queue.length <= 2) {
+        prefetchVideoStreamUrl(videoId);
+      }
 
       socket.emit('add-queue-status', { loading: false });
       if (!state.currentVideo) playNext();
@@ -851,6 +1367,9 @@ io.on('connection', (socket) => {
   socket.on('quality-control', (qual) => {
     if (typeof qual === 'string') {
       state.quality = qual;
+      if (state.currentVideo && state.currentVideo.videoId && qual !== 'auto') {
+        prefetchVideoStreamUrl(state.currentVideo.videoId);
+      }
       broadcastState();
     }
   });
@@ -890,19 +1409,55 @@ io.on('connection', (socket) => {
     io.emit('seek-video', seconds);
   });
 
-  // Embed Error Handlers & Interactive Choice
-  socket.on('playback-error', (data) => {
-    if (!data || !state.currentVideo) return;
-    io.emit('show-error-prompt', {
-      videoId: state.currentVideo.videoId,
-      title: state.currentVideo.title,
-      errorCode: data.errorCode || 150
-    });
+  // Auto-DJ Mode & Continuous Playback Configuration
+  socket.on('autodj-config', (cfg) => {
+    if (!cfg || typeof cfg !== 'object') return;
+    if (typeof cfg.enabled === 'boolean') {
+      state.autoDjEnabled = cfg.enabled;
+    }
+    if (typeof cfg.mode === 'string' && AUTO_DJ_MODES[cfg.mode]) {
+      state.autoDjMode = cfg.mode;
+    }
+    if (typeof cfg.customQuery === 'string') {
+      state.autoDjCustomQuery = cfg.customQuery.trim().substring(0, 50);
+    }
+    broadcastState();
+
+    const modeCfg = AUTO_DJ_MODES[state.autoDjMode] || AUTO_DJ_MODES.khlerm;
+    const modeDesc = state.autoDjCustomQuery
+      ? `${modeCfg.shortLabel} • "${state.autoDjCustomQuery}"`
+      : modeCfg.label;
+
+    if (cfg.notify !== false) {
+      io.emit(
+        'show-toast-broadcast',
+        state.autoDjEnabled
+          ? `🎧 Auto-DJ เปิดอยู่: ${modeDesc}`
+          : `⏸️ ปิดระบบเล่นเพลงต่อเนื่อง Auto-DJ แล้ว`
+      );
+    }
+
+    if (state.autoDjEnabled && !state.currentVideo && state.queue.length === 0) {
+      triggerAutoDjNextTrack(false);
+    }
   });
 
-  socket.on('resolve-error-action', async (action) => {
-    io.emit('close-error-prompt');
+  socket.on('autodj-play-now', (cfg) => {
+    if (cfg && typeof cfg === 'object') {
+      if (typeof cfg.mode === 'string' && AUTO_DJ_MODES[cfg.mode]) {
+        state.autoDjMode = cfg.mode;
+      }
+      if (typeof cfg.customQuery === 'string') {
+        state.autoDjCustomQuery = cfg.customQuery.trim().substring(0, 50);
+      }
+    }
+    state.autoDjEnabled = true;
+    broadcastState();
+    triggerAutoDjNextTrack(true);
+  });
 
+  // Automatic Alternative Video Fallback Handler
+  socket.on('resolve-error-action', async (action) => {
     if (action === 'find-alt') {
       if (!state.currentVideo || isFindingAlt) return;
 
@@ -964,6 +1519,7 @@ io.on('connection', (socket) => {
           state.isPlaying = true;
           state.currentTime = 0;
           state.duration = 0;
+          prefetchVideoStreamUrl(alt.id);
           broadcastState();
           io.emit('show-toast-broadcast', `สลับไปเล่นคลิปสำรอง (${nextRetryCount}/${MAX_ALT_RETRIES}): ${state.currentVideo.title}`);
         } else {
@@ -989,12 +1545,120 @@ io.on('connection', (socket) => {
     if (!allowedEmojis.includes(emoji)) return;
 
     const now = Date.now();
-    const limits = clientRateLimits.get(socket.id) || { lastDanmaku: 0, lastReaction: 0 };
+    const limits = clientRateLimits.get(socket.id) || { lastDanmaku: 0, lastReaction: 0, lastSoundboard: 0 };
     if (now - limits.lastReaction < 200) return;
     limits.lastReaction = now;
     clientRateLimits.set(socket.id, limits);
 
     io.emit('new-reaction', emoji);
+  });
+
+  // DJ Party Soundboard Effects Broadcast
+  socket.on('send-soundboard', (payload) => {
+    const soundId = typeof payload === 'string' ? payload : payload?.soundId;
+    if (typeof soundId !== 'string') return;
+    const allowedSounds = ['airhorn', 'badumtss', 'cheer', 'siren', 'laser', 'cricket'];
+    if (!allowedSounds.includes(soundId)) return;
+
+    const now = Date.now();
+    const limits = clientRateLimits.get(socket.id) || { lastDanmaku: 0, lastReaction: 0, lastSoundboard: 0 };
+    if (now - (limits.lastSoundboard || 0) < 850) {
+      return socket.emit('error-msg', 'กดซาวด์เอฟเฟกต์รัวเกินไป รอสักครู่นะครับ 🎛️');
+    }
+    limits.lastSoundboard = now;
+    clientRateLimits.set(socket.id, limits);
+
+    const senderName = connectedUsers[socket.id]?.name || (typeof payload?.nickname === 'string' ? payload.nickname.trim().substring(0, 20) : 'DJ ในห้อง');
+    io.emit('play-soundboard-fx', {
+      soundId,
+      senderName,
+      senderId: socket.id,
+      timestamp: now
+    });
+  });
+
+  // One-click Karaoke / Backing Track Switcher for current playing track
+  socket.on('toggle-karaoke-mode', async () => {
+    if (!state.currentVideo || isSwitchingKaraoke) return;
+    isSwitchingKaraoke = true;
+    const targetItemId = state.currentVideo.id;
+    const senderName = connectedUsers[socket.id]?.name || 'สมาชิก';
+
+    try {
+      // If currently in Karaoke mode and we have the original vocal video saved, switch back!
+      if (state.currentVideo.isKaraokeMode && state.currentVideo.normalVideoId) {
+        const normalId = state.currentVideo.normalVideoId;
+        const normalTitle = state.currentVideo.normalTitle || state.currentVideo.originalTitle || state.currentVideo.title;
+        const normalAuthor = state.currentVideo.normalAuthor || state.currentVideo.author;
+        state.currentVideo = {
+          ...state.currentVideo,
+          videoId: normalId,
+          url: `https://www.youtube.com/watch?v=${normalId}`,
+          title: normalTitle,
+          author: normalAuthor,
+          isKaraokeMode: false
+        };
+        state.isPlaying = true;
+        state.currentTime = 0;
+        state.duration = 0;
+        prefetchVideoStreamUrl(normalId);
+        broadcastState();
+        io.emit('show-toast-broadcast', `🎵 ${senderName} สลับกลับเป็นโหมดเพลงต้นฉบับ (มีเสียงร้อง)`);
+        return;
+      }
+
+      // Otherwise, search for a Karaoke / Instrumental version of the current song
+      const baseTitle = state.currentVideo.originalTitle || state.currentVideo.normalTitle || state.currentVideo.title || '';
+      const baseAuthor = state.currentVideo.normalAuthor || state.currentVideo.author || '';
+      const { cleanTitle, cleanAuthor } = cleanSongTitleForLyrics(baseTitle, baseAuthor);
+      const searchBase = `${cleanTitle || baseTitle} ${cleanAuthor}`.trim();
+      const karaokeQuery = `${searchBase} คาราโอเกะ karaoke backing track`.trim();
+
+      const yt = await getInnertube();
+      const search = await yt.search(karaokeQuery);
+
+      if (!state.currentVideo || state.currentVideo.id !== targetItemId) return;
+
+      const videos = Array.isArray(search?.videos) ? search.videos : [];
+      const currentVidId = state.currentVideo.videoId;
+      const karaokeCandidate = videos.find(v => {
+        if (!v || typeof v.id !== 'string' || v.id.length !== 11 || v.id === currentVidId) return false;
+        const t = (v.title?.text || v.title?.runs?.[0]?.text || '').toLowerCase();
+        return /karaoke|คาราโอเกะ|backing\s*track|instrumental|ดนตรีสด|ดนตรีล้วน|minus\s*one|off\s*vocal/.test(t);
+      }) || videos.find(v => v && typeof v.id === 'string' && v.id.length === 11 && v.id !== currentVidId);
+
+      if (!karaokeCandidate) {
+        socket.emit('error-msg', 'ไม่พบเวอร์ชันคาราโอเกะสำหรับเพลงนี้ใน YouTube');
+        return;
+      }
+
+      const kTitle = karaokeCandidate.title?.text || karaokeCandidate.title?.runs?.[0]?.text || `${cleanTitle} (Karaoke)`;
+      const kAuthor = karaokeCandidate.author?.name || 'Karaoke Channel';
+
+      state.currentVideo = {
+        ...state.currentVideo,
+        normalVideoId: state.currentVideo.normalVideoId || state.currentVideo.videoId,
+        normalTitle: state.currentVideo.normalTitle || state.currentVideo.title,
+        normalAuthor: state.currentVideo.normalAuthor || state.currentVideo.author,
+        originalTitle: state.currentVideo.originalTitle || state.currentVideo.title,
+        videoId: karaokeCandidate.id,
+        url: `https://www.youtube.com/watch?v=${karaokeCandidate.id}`,
+        title: `🎤 [คาราโอเกะ] ${kTitle}`,
+        author: kAuthor,
+        isKaraokeMode: true
+      };
+      state.isPlaying = true;
+      state.currentTime = 0;
+      state.duration = 0;
+      prefetchVideoStreamUrl(karaokeCandidate.id);
+      broadcastState();
+      io.emit('show-toast-broadcast', `🎤 ${senderName} สลับเป็นโหมดคาราโอเกะ: ${kTitle}`);
+    } catch (err) {
+      console.error('Toggle karaoke error:', err.message);
+      socket.emit('error-msg', 'เกิดข้อผิดพลาดในการค้นหาเวอร์ชันคาราโอเกะ');
+    } finally {
+      isSwitchingKaraoke = false;
+    }
   });
 
   socket.on('send-danmaku', (data) => {

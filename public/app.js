@@ -43,7 +43,10 @@ let state = {
     currentTime: 0,
     duration: 0,
     volume: 50,
-    quality: 'max'
+    quality: 'max',
+    autoDjEnabled: true,
+    autoDjMode: 'khlerm',
+    autoDjCustomQuery: ''
 };
 
 // Profile
@@ -81,6 +84,7 @@ const urlInput = $('url-input');
 const addBtn = $('add-btn');
 const btnPlay = $('btn-play');
 const iconPlay = $('icon-play');
+const playLabel = $('play-label');
 const btnSkip = $('btn-skip');
 const skipLabel = $('skip-label');
 const volDown = $('vol-down');
@@ -103,6 +107,7 @@ const nowEq = $('now-eq');
 const nowLiveDot = $('now-live-dot');
 const nowTitle = $('now-title');
 const nowAuthor = $('now-author');
+const nowAddedBy = $('now-added-by');
 const queueList = $('queue-list');
 const qCount = $('q-count');
 const qCountMobile = $('q-count-mobile');
@@ -143,8 +148,7 @@ function playIntroSound() {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
-        const ctx = typeof getSharedAudioCtx === 'function' ? getSharedAudioCtx() : new AudioCtx();
-        if (!ctx) return;
+        const ctx = new AudioCtx();
         if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
         const now = ctx.currentTime + 0.01;
@@ -353,7 +357,7 @@ function updateProfileUI() {
     }
 }
 
-// --- YouTube API & Direct Video Stream Bypass (1080p Full HD) ---
+// --- YouTube API & Direct Video Stream Engine (Forced 1080p+ Full HD, Zero YouTube UI) ---
 let ytPlayer = null;
 let playerReady = false;
 let directVideoMode = false;
@@ -361,28 +365,127 @@ let directVideoId = null;
 let directHasSeparateAudio = false;
 let directQualityLabel = '1080p HD';
 let directAppliedQuality = null;
+let directFallbackToEmbedId = null;
+let directStreamReadySrcSet = false;
 let activePlayerVideoId = null;
+let lastLoadedYtVideoId = null;
+
+function setYtPlayerVisible(visible) {
+    const wrap = $('yt-player-wrap');
+    const livePlayerEl = $('yt-player');
+    if (wrap) wrap.classList.toggle('hidden', !visible);
+    if (livePlayerEl) livePlayerEl.classList.toggle('hidden', !visible);
+    if (!visible) {
+        lastLoadedYtVideoId = null;
+        if (ytPlayer && ytPlayer.stopVideo) {
+            try { ytPlayer.stopVideo(); } catch (e) {}
+        }
+    }
+}
+
+function shouldForceDirectStream(videoId) {
+    if (!videoId) return false;
+    if (directFallbackToEmbedId === videoId) return false;
+    // Always use Direct Clean Stream Engine for all quality modes so no YouTube UI/menus ever appear
+    return true;
+}
+
+function detectRealVideoHeightLabel() {
+    if (!nativeVideo || !nativeVideo.videoHeight) return null;
+    const h = nativeVideo.videoHeight;
+    if (h >= 2000) return '4K UHD';
+    if (h >= 1350) return '1440p 2K';
+    if (h >= 1000) return '1080p HD';
+    if (h >= 680) return '720p HD';
+    if (h >= 440) return '480p';
+    if (h > 0) return `${h}p`;
+    return null;
+}
+
+function ensureAudioUnmutedAndPlaying() {
+    if (!hostMode || !state.isPlaying) return;
+    const vol = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
+    if (directVideoMode && nativeVideo && directStreamReadySrcSet) {
+        if (directHasSeparateAudio && nativeAudio) {
+            nativeVideo.muted = true;
+            nativeAudio.muted = false;
+            nativeAudio.volume = vol;
+            if (nativeVideo.paused) nativeVideo.play().catch(() => {});
+            if (nativeAudio.paused) nativeAudio.play().catch(() => {});
+        } else {
+            nativeVideo.muted = false;
+            nativeVideo.volume = vol;
+            if (nativeVideo.paused) nativeVideo.play().catch(() => {});
+        }
+        return;
+    }
+    if (playerReady && ytPlayer) {
+        try {
+            if (typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+            if (typeof ytPlayer.setVolume === 'function') ytPlayer.setVolume(state.volume ?? 50);
+            if (typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+        } catch (e) {}
+    }
+}
+
+// Automatically unlock audio on any user interaction anywhere on the page
+['pointerdown', 'mousedown', 'touchstart', 'keydown', 'click'].forEach((evtName) => {
+    document.addEventListener(evtName, () => {
+        ensureAudioUnmutedAndPlaying();
+    }, { passive: true });
+});
 
 function playNativeVideoSafely() {
-    if (!nativeVideo) return;
+    if (!nativeVideo || !directStreamReadySrcSet) return;
+    const vol = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
+
     if (directHasSeparateAudio && nativeAudio) {
         nativeVideo.muted = true;
+        nativeAudio.muted = false;
+        nativeAudio.volume = vol;
         nativeVideo.play().catch(() => {});
-        const audioPromise = nativeAudio.play();
-        if (audioPromise && typeof audioPromise.catch === 'function') {
-            audioPromise.catch(() => {
-                nativeAudio.muted = true;
-                if (unmuteBtn) unmuteBtn.classList.remove('hidden');
-                nativeAudio.play().catch(() => {});
-            });
+
+        const tryPlaySeparateAudio = () => {
+            if (!directVideoMode || !directHasSeparateAudio || !state.isPlaying) return;
+            nativeAudio.muted = false;
+            nativeAudio.volume = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
+            const p = nativeAudio.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch((err) => {
+                    // Only if browser strictly blocked initial unmuted autoplay before first gesture,
+                    // keep video rolling and retry unmuted playback immediately on next frame/canplay
+                    if (err && err.name === 'NotAllowedError') {
+                        setTimeout(() => {
+                            if (directVideoMode && state.isPlaying && nativeAudio) {
+                                nativeAudio.muted = false;
+                                nativeAudio.play().catch(() => {});
+                            }
+                        }, 350);
+                    }
+                });
+            }
+        };
+
+        if (nativeAudio.readyState >= 2) {
+            tryPlaySeparateAudio();
+        } else {
+            nativeAudio.addEventListener('canplay', tryPlaySeparateAudio, { once: true });
+            tryPlaySeparateAudio();
         }
     } else {
+        nativeVideo.muted = false;
+        nativeVideo.volume = vol;
         const playPromise = nativeVideo.play();
         if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(() => {
-                nativeVideo.muted = true;
-                if (unmuteBtn) unmuteBtn.classList.remove('hidden');
-                nativeVideo.play().catch(() => {});
+            playPromise.catch((err) => {
+                if (err && err.name === 'NotAllowedError') {
+                    // Start video frames immediately and retry unmuting
+                    nativeVideo.muted = true;
+                    nativeVideo.play().then(() => {
+                        nativeVideo.muted = false;
+                        nativeVideo.volume = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
+                    }).catch(() => {});
+                }
             });
         }
     }
@@ -398,42 +501,61 @@ function stopDirectVideoStream() {
     directVideoId = null;
     directHasSeparateAudio = false;
     directAppliedQuality = null;
-    const ytEl = $('yt-player');
-    if (ytEl) ytEl.classList.remove('hidden');
+    directStreamReadySrcSet = false;
     if (directVideoLoading) directVideoLoading.classList.add('hidden');
     if (nativeVideo) {
         nativeVideo.pause();
         nativeVideo.removeAttribute('src');
-        nativeVideo.load();
         nativeVideo.classList.add('hidden');
     }
     if (nativeAudio) {
         nativeAudio.pause();
         nativeAudio.removeAttribute('src');
-        nativeAudio.load();
     }
 }
 
-async function startDirectVideoStream(videoId, forceReload = false, resumeTime = 0) {
+async function startDirectVideoStream(videoId, forceReload = false, resumeTime = 0, isEmbedErrorFallback = false) {
     if (!hostMode || !nativeVideo || !videoId) return;
     const targetQuality = state.quality || 'max';
-    if (!forceReload && directVideoMode && directVideoId === videoId && directAppliedQuality === targetQuality) return;
+    if (!forceReload && directVideoMode && directVideoId === videoId && directAppliedQuality === targetQuality && directStreamReadySrcSet) {
+        return;
+    }
 
     directVideoMode = true;
     directVideoId = videoId;
     directAppliedQuality = targetQuality;
+    directStreamReadySrcSet = false;
 
-    if (ytPlayer && ytPlayer.stopVideo) {
-        try { ytPlayer.stopVideo(); } catch (e) {}
+    // Completely hide YouTube IFrame so no YouTube pause menu, title bar, or overlays can ever show
+    setYtPlayerVisible(false);
+
+    // Pause previous native media cleanly before fetching new stream info
+    if (nativeVideo) {
+        nativeVideo.pause();
+        nativeVideo.removeAttribute('src');
     }
-    const ytEl = $('yt-player');
-    if (ytEl) ytEl.classList.add('hidden');
+    if (nativeAudio) {
+        nativeAudio.pause();
+        nativeAudio.removeAttribute('src');
+    }
+
+    const loadingTitle = $('direct-loading-title');
+    const loadingSub = $('direct-loading-sub');
+    if (loadingTitle && loadingSub) {
+        if (isEmbedErrorFallback) {
+            loadingTitle.textContent = 'กำลังปลดล็อกวิดีโอติดลิขสิทธิ์ (Direct 1080p HD)...';
+            loadingSub.textContent = 'เจ้าของคลิปไม่อนุญาตให้ฝัง ระบบกำลังดึงภาพและเสียงตรงความชัดสูงมาเล่นให้';
+        } else {
+            loadingTitle.textContent = '⚡ กำลังดึงสตรีมวิดีโอความคมชัดสูง (Direct HD Stream)...';
+            loadingSub.textContent = 'เล่นวิดีโอตรงแบบคลีน ไร้ปุ่มและเมนูรบกวนจาก YouTube';
+        }
+    }
 
     if (directVideoLoading) directVideoLoading.classList.remove('hidden');
     nativeVideo.classList.remove('hidden');
     if (playerQualityBadge) playerQualityBadge.textContent = '1080p HD';
 
-    if (!forceReload) {
+    if (isEmbedErrorFallback && !forceReload) {
         showToast('เจ้าของคลิปไม่อนุญาตให้ฝัง ระบบกำลังดึงวิดีโอความชัดสูง (1080p Full HD) มาเล่นให้...', 'info');
     }
 
@@ -449,7 +571,7 @@ async function startDirectVideoStream(videoId, forceReload = false, resumeTime =
         directQualityLabel = info.qualityLabel || '1080p HD';
         if (playerQualityBadge) playerQualityBadge.textContent = directQualityLabel;
 
-        const vol = Math.max(0, Math.min(1, (state.volume ?? 50) / 100));
+        const vol = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
         const qParam = encodeURIComponent(targetQuality);
 
         if (directHasSeparateAudio && nativeAudio) {
@@ -467,6 +589,7 @@ async function startDirectVideoStream(videoId, forceReload = false, resumeTime =
             nativeVideo.volume = vol;
         }
 
+        directStreamReadySrcSet = true;
         nativeVideo.src = `/api/video-stream/${encodeURIComponent(videoId)}?quality=${qParam}`;
         nativeVideo.load();
 
@@ -486,6 +609,11 @@ async function startDirectVideoStream(videoId, forceReload = false, resumeTime =
         console.error('Direct stream init error:', err);
         if (!hostMode || !directVideoMode || directVideoId !== videoId) return;
         stopDirectVideoStream();
+        if (!isEmbedErrorFallback && directFallbackToEmbedId !== videoId) {
+            directFallbackToEmbedId = videoId;
+            applyHostModeState();
+            return;
+        }
         if (state.currentVideo && state.currentVideo.videoId === videoId) {
             showToast('ไม่สามารถดึงวิดีโอตรงได้ กำลังค้นหาคลิปสำรองให้อัตโนมัติ...', 'info');
             socket.emit('resolve-error-action', 'find-alt');
@@ -493,11 +621,36 @@ async function startDirectVideoStream(videoId, forceReload = false, resumeTime =
     }
 }
 
+if (nativeAudio) {
+    nativeAudio.addEventListener('canplay', () => {
+        if (!directVideoMode || !directStreamReadySrcSet || !directHasSeparateAudio || !state.isPlaying) return;
+        nativeAudio.muted = false;
+        nativeAudio.volume = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
+        if (nativeAudio.paused) {
+            nativeAudio.play().catch(() => {});
+        }
+    });
+}
+
 if (nativeVideo) {
+    nativeVideo.addEventListener('loadedmetadata', () => {
+        if (!directVideoMode || !directStreamReadySrcSet) return;
+        const realLabel = detectRealVideoHeightLabel();
+        if (realLabel) {
+            directQualityLabel = realLabel;
+            if (playerQualityBadge) playerQualityBadge.textContent = realLabel;
+        }
+    });
+
     nativeVideo.addEventListener('loadeddata', () => {
-        if (!directVideoMode) return;
+        if (!directVideoMode || !directStreamReadySrcSet) return;
         if (directVideoLoading) directVideoLoading.classList.add('hidden');
-        if (state.isPlaying && nativeVideo.paused) {
+        const realLabel = detectRealVideoHeightLabel();
+        if (realLabel) {
+            directQualityLabel = realLabel;
+            if (playerQualityBadge) playerQualityBadge.textContent = realLabel;
+        }
+        if (state.isPlaying) {
             playNativeVideoSafely();
         }
     });
@@ -508,33 +661,45 @@ if (nativeVideo) {
     });
 
     nativeVideo.addEventListener('playing', () => {
-        if (!directVideoMode) return;
+        if (!directVideoMode || !directStreamReadySrcSet) return;
         if (directVideoLoading) directVideoLoading.classList.add('hidden');
+        const realLabel = detectRealVideoHeightLabel();
+        if (realLabel) {
+            directQualityLabel = realLabel;
+            if (playerQualityBadge) playerQualityBadge.textContent = realLabel;
+        }
+        const vol = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
         if (directHasSeparateAudio && nativeAudio && state.isPlaying) {
+            nativeVideo.muted = true;
+            nativeAudio.muted = false;
+            nativeAudio.volume = vol;
             if (Math.abs((nativeVideo.currentTime || 0) - (nativeAudio.currentTime || 0)) > 0.25) {
                 nativeAudio.currentTime = nativeVideo.currentTime || 0;
             }
             if (nativeAudio.paused) nativeAudio.play().catch(() => {});
-        }
-        const isMutedNow = directHasSeparateAudio ? (nativeAudio && nativeAudio.muted) : nativeVideo.muted;
-        if (isMutedNow && unmuteBtn) {
-            unmuteBtn.classList.remove('hidden');
-        } else if (unmuteBtn) {
-            unmuteBtn.classList.add('hidden');
+        } else if (!directHasSeparateAudio && state.isPlaying) {
+            nativeVideo.muted = false;
+            nativeVideo.volume = vol;
         }
     });
 
     nativeVideo.addEventListener('ended', () => {
-        if (hostMode && directVideoMode) {
+        if (hostMode && directVideoMode && directStreamReadySrcSet) {
             pauseNativeMedia();
             socket.emit('player-video-ended');
         }
     });
 
     nativeVideo.addEventListener('error', () => {
-        if (!hostMode || !directVideoMode) return;
+        // Ignore spurious error events fired when clearing src during song transitions
+        if (!hostMode || !directVideoMode || !directStreamReadySrcSet || !nativeVideo.getAttribute('src')) return;
         const failedId = directVideoId;
         stopDirectVideoStream();
+        if (failedId && directFallbackToEmbedId !== failedId) {
+            directFallbackToEmbedId = failedId;
+            applyHostModeState();
+            return;
+        }
         if (state.currentVideo && state.currentVideo.videoId === failedId) {
             showToast('ไม่สามารถดึงวิดีโอตรงได้ กำลังค้นหาคลิปสำรองให้อัตโนมัติ...', 'info');
             socket.emit('resolve-error-action', 'find-alt');
@@ -563,8 +728,12 @@ window.onYouTubeIframeAPIReady = function() {
             'fs': 0,
             'rel': 0,
             'modestbranding': 1,
+            'iv_load_policy': 3,
+            'cc_load_policy': 0,
+            'autohide': 1,
             'playsinline': 1,
             'enablejsapi': 1,
+            'vq': 'hd1080',
             'origin': window.location.origin
         },
         events: {
@@ -582,24 +751,40 @@ function onPlayerReady(event) {
 
 function onPlayerError(event) {
     console.warn('YouTube Embed Error:', event.data, '-> Switching to Direct 1080p HD Video Stream');
-    if (hostMode && state.currentVideo && state.currentVideo.videoId) {
-        startDirectVideoStream(state.currentVideo.videoId);
+    if (hostMode && state.currentVideo && state.currentVideo.videoId && directFallbackToEmbedId !== state.currentVideo.videoId) {
+        startDirectVideoStream(state.currentVideo.videoId, true, 0, true);
     } else {
         socket.emit('resolve-error-action', 'find-alt');
     }
 }
 
 function enforceQuality() {
-    if (directVideoMode) {
-        const targetQuality = state.quality || 'max';
-        if (directVideoId && directAppliedQuality && directAppliedQuality !== targetQuality) {
+    if (!hostMode || !state.currentVideo) return;
+    const targetQuality = state.quality || 'max';
+    const videoId = state.currentVideo.videoId;
+
+    // If user selected forced quality (max / 1080p / 720p / 480p / 360p), use Direct HD Stream Engine
+    if (targetQuality !== 'auto' && directFallbackToEmbedId !== videoId) {
+        if (!directVideoMode) {
+            const currTime = (ytPlayer && ytPlayer.getCurrentTime) ? (ytPlayer.getCurrentTime() || 0) : (state.currentTime || 0);
+            startDirectVideoStream(videoId, true, currTime);
+            return;
+        }
+        if (directVideoId === videoId && directAppliedQuality && directAppliedQuality !== targetQuality) {
             const currTime = nativeVideo ? (nativeVideo.currentTime || 0) : 0;
-            startDirectVideoStream(directVideoId, true, currTime);
+            startDirectVideoStream(videoId, true, currTime);
+            return;
         }
         if (playerQualityBadge) playerQualityBadge.textContent = directQualityLabel;
         return;
     }
-    if (!hostMode || !ytPlayer || !ytPlayer.getAvailableQualityLevels || !ytPlayer.setPlaybackQuality) return;
+
+    if (directVideoMode) {
+        if (playerQualityBadge) playerQualityBadge.textContent = directQualityLabel;
+        return;
+    }
+
+    if (!ytPlayer || !ytPlayer.getAvailableQualityLevels || !ytPlayer.setPlaybackQuality) return;
     const target = state.quality || 'max';
     const available = ytPlayer.getAvailableQualityLevels();
     
@@ -611,6 +796,9 @@ function enforceQuality() {
 
     if (selectedQuality && selectedQuality !== 'auto') {
         ytPlayer.setPlaybackQuality(selectedQuality);
+        if (typeof ytPlayer.setPlaybackQualityRange === 'function') {
+            try { ytPlayer.setPlaybackQualityRange(selectedQuality, 'highres'); } catch (e) {}
+        }
     } else {
         ytPlayer.setPlaybackQuality('auto');
     }
@@ -635,39 +823,28 @@ function updateQualityBadge(q) {
 function onPlayerStateChange(event) {
     if (directVideoMode) return;
     if (event.data === YT.PlayerState.PLAYING) {
+        try {
+            if (ytPlayer && typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+            if (ytPlayer && typeof ytPlayer.setVolume === 'function') ytPlayer.setVolume(state.volume ?? 50);
+            if (ytPlayer && typeof ytPlayer.unloadModule === 'function') {
+                ytPlayer.unloadModule('captions');
+                ytPlayer.unloadModule('cc');
+            }
+        } catch (e) {}
         enforceQuality();
         setTimeout(enforceQuality, 1200);
+    }
+    if ((event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.CUED) && state.isPlaying) {
+        if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
+            try {
+                if (typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+                ytPlayer.playVideo();
+            } catch (e) {}
+        }
     }
     if (event.data === YT.PlayerState.ENDED) {
         socket.emit('player-video-ended');
     }
-    // Check if autoplay muted it
-    if (ytPlayer && ytPlayer.isMuted && ytPlayer.isMuted() && unmuteBtn) {
-        unmuteBtn.classList.remove('hidden');
-    } else if (unmuteBtn) {
-        unmuteBtn.classList.add('hidden');
-    }
-}
-
-if (unmuteBtn) {
-    unmuteBtn.addEventListener('click', () => {
-        if (directVideoMode) {
-            if (directHasSeparateAudio && nativeAudio) {
-                nativeAudio.muted = false;
-                nativeAudio.play().catch(() => {});
-            } else if (nativeVideo) {
-                nativeVideo.muted = false;
-                nativeVideo.play().catch(() => {});
-            }
-            unmuteBtn.classList.add('hidden');
-            return;
-        }
-        if (ytPlayer && ytPlayer.unMute) {
-            ytPlayer.unMute();
-            ytPlayer.playVideo();
-            unmuteBtn.classList.add('hidden');
-        }
-    });
 }
 
 // Host syncs progress to server & keeps 1080p split video+audio in tight sync
@@ -706,11 +883,16 @@ setInterval(() => {
 
 // --- Modes: Host vs Client ---
 function updateUIMode() {
+    const addQueueCard = $('add-queue-card');
+    const soundboardCard = $('soundboard-card');
+
     if (hostMode) {
         // Host mode
         document.body.classList.remove('client-mode');
         hostBadge.classList.remove('hidden');
         clientControls.classList.add('hidden');
+        if (addQueueCard) addQueueCard.classList.add('hidden');
+        if (soundboardCard) soundboardCard.classList.add('hidden');
         qrContainer.classList.remove('hidden');
         fitQrUrlText();
         secUsers.style.display = 'none';
@@ -722,6 +904,8 @@ function updateUIMode() {
         document.body.classList.add('client-mode');
         hostBadge.classList.add('hidden');
         clientControls.classList.remove('hidden');
+        if (addQueueCard) addQueueCard.classList.remove('hidden');
+        if (soundboardCard) soundboardCard.classList.remove('hidden');
         qrContainer.classList.add('hidden');
         secUsers.style.display = '';
         stopDirectVideoStream();
@@ -764,7 +948,28 @@ function getSourceIconHtml(item) {
     if (item && item.source === 'spotify') {
         return '<i class="fa-brands fa-spotify text-[#1DB954] mr-1" title="จาก Spotify"></i>';
     }
+    if (item && (item.source === 'autodj' || item.isAutoDj)) {
+        return '<i class="fa-solid fa-wand-magic-sparkles text-purple-400 mr-1" title="สุ่มอัตโนมัติโดย Auto-DJ"></i>';
+    }
     return '<i class="fa-brands fa-youtube text-red-500 mr-1" title="จาก YouTube"></i>';
+}
+
+const AUTO_DJ_MODE_LABELS = {
+    khlerm: '🌙 เคลิ้มๆ ลอยๆ',
+    similar: '🎯 ตามเพลงล่าสุด',
+    indie_thai: '🎸 อินดี้/ป๊อปไทยฮิต',
+    acoustic_cafe: '☕ อะคูสติกฟังสบาย',
+    party_dance: '🔥 สายตี้แดนซ์มันส์ๆ',
+    retro_90s: '📼 ย้อนยุค 90s-2000s',
+    inter_chill: '🌎 สากลเคลิ้มๆ',
+    lukthung_party: '🍻 ลูกทุ่งสายม่วน'
+};
+
+function getAutoDjModeShortLabel(mode, customQuery) {
+    if (customQuery && customQuery.trim()) {
+        return `✨ ${customQuery.trim()}`;
+    }
+    return AUTO_DJ_MODE_LABELS[mode] || AUTO_DJ_MODE_LABELS.khlerm;
 }
 
 let lastRenderedVideoId = null;
@@ -772,13 +977,19 @@ let lastQueueSignature = null;
 let knownQueueIds = new Set();
 
 function renderState() {
+    if (nowPlayingCard) nowPlayingCard.scrollTop = 0;
+
     // Current Video + Now Playing Thumbnail & Ambient Glow
     const currentId = state.currentVideo ? `${state.currentVideo.videoId}:${state.currentVideo.thumbnail || ''}` : null;
 
     if (state.currentVideo) {
         nowTitle.textContent = state.currentVideo.title;
-        const authorPrefix = state.currentVideo.author ? `${escapeHtml(state.currentVideo.author)} • ` : '';
-        nowAuthor.innerHTML = `${getSourceIconHtml(state.currentVideo)}${authorPrefix}เพิ่มโดย: <span style="color:${safeColor(state.currentVideo.color)}" class="font-medium">${escapeHtml(state.currentVideo.addedBy)}</span>`;
+        const authorText = state.currentVideo.author ? escapeHtml(state.currentVideo.author) : 'กำลังเล่นเพลง';
+        nowAuthor.innerHTML = `${getSourceIconHtml(state.currentVideo)}${authorText}`;
+        if (nowAddedBy) {
+            nowAddedBy.innerHTML = `เพิ่มโดย: <span style="color:${safeColor(state.currentVideo.color)}" class="font-semibold">${escapeHtml(state.currentVideo.addedBy || 'สมาชิก')}</span>`;
+            nowAddedBy.classList.remove('hidden');
+        }
 
         // Smooth fade-out for empty state
         emptyState.classList.remove('opacity-100', 'scale-100');
@@ -827,6 +1038,10 @@ function renderState() {
     } else {
         nowTitle.textContent = 'ยังไม่มีเพลง';
         nowAuthor.textContent = '—';
+        if (nowAddedBy) {
+            nowAddedBy.textContent = '';
+            nowAddedBy.classList.add('hidden');
+        }
 
         // Smooth fade-in for empty state
         emptyState.classList.remove('hidden', 'opacity-0', 'scale-95', 'pointer-events-none');
@@ -852,8 +1067,18 @@ function renderState() {
         lastRenderedVideoId = null;
     }
 
-    // Play/Pause icon
-    iconPlay.className = state.isPlaying ? "fa-solid fa-pause text-lg text-brand-peri" : "fa-solid fa-play text-lg text-brand-peri";
+    if (typeof updateKaraokeButtonUI === 'function') {
+        updateKaraokeButtonUI();
+    }
+    if (typeof syncLyricsForCurrentTrack === 'function') {
+        syncLyricsForCurrentTrack();
+    }
+
+    // Play/Pause icon & label
+    iconPlay.className = state.isPlaying ? "fa-solid fa-pause text-base text-brand-peri" : "fa-solid fa-play text-base text-brand-peri";
+    if (playLabel) {
+        playLabel.textContent = state.isPlaying ? 'หยุดชั่วคราว' : 'เล่นเพลง';
+    }
 
     // Volume
     volSlider.value = state.volume;
@@ -868,10 +1093,27 @@ function renderState() {
     qCount.textContent = state.queue.length;
     qCountMobile.textContent = state.queue.length;
 
-    const currentSignature = state.queue.map(i => `${i.id}:${i.videoId}:${i.title}`).join('|');
+    const autoDjSig = `${Boolean(state.autoDjEnabled)}:${state.autoDjMode || 'khlerm'}:${state.autoDjCustomQuery || ''}`;
+    const currentSignature = state.queue.length > 0
+        ? state.queue.map(i => `${i.id}:${i.videoId}:${i.title}`).join('|')
+        : `EMPTY:${autoDjSig}`;
     if (currentSignature !== lastQueueSignature) {
         if (state.queue.length === 0) {
-            queueList.innerHTML = `<p class="text-center text-[10px] text-brand-light/30 py-4 animate-fade-in-up">คิวว่างเปล่า</p>`;
+            if (state.autoDjEnabled !== false) {
+                const modeLabel = getAutoDjModeShortLabel(state.autoDjMode, state.autoDjCustomQuery);
+                queueList.innerHTML = `
+                    <div class="text-center py-3.5 px-2 space-y-1.5 animate-fade-in-up">
+                        <p class="text-[10px] text-brand-light/35">คิวว่างเปล่า — ระบบจะสุ่มเพลงเล่นต่ออัตโนมัติ</p>
+                        <button type="button" data-open-autodj-settings="1" class="text-[10px] text-purple-300 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 rounded-lg py-1.5 px-2.5 inline-flex items-center gap-1.5 transition cursor-pointer" title="คลิกเพื่อเปลี่ยนโหมด Auto-DJ ในเมนูตั้งค่า">
+                            <i class="fa-solid fa-wand-magic-sparkles text-purple-400 animate-pulse"></i>
+                            <span>Auto-DJ: <strong>${escapeHtml(modeLabel)}</strong></span>
+                            <i class="fa-solid fa-sliders text-[9px] text-purple-300/70 ml-0.5"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                queueList.innerHTML = `<p class="text-center text-[10px] text-brand-light/30 py-4 animate-fade-in-up">คิวว่างเปล่า (ปิด Auto-DJ อยู่)</p>`;
+            }
             knownQueueIds.clear();
         } else {
             const nextKnownIds = new Set();
@@ -904,11 +1146,18 @@ function renderState() {
         lastQueueSignature = currentSignature;
     }
 
+    if (typeof syncAutoDjSettingsUI === 'function') {
+        syncAutoDjSettingsUI();
+    }
     applyHostModeState();
 }
 
 // Queue delegation for delete buttons with smooth fade-out animation
 queueList.addEventListener('click', (e) => {
+    if (e.target.closest('[data-open-autodj-settings]')) {
+        if (typeof openSettingsModal === 'function') openSettingsModal();
+        return;
+    }
     const btn = e.target.closest('[data-remove-id]');
     if (btn) {
         const id = btn.getAttribute('data-remove-id');
@@ -929,8 +1178,10 @@ queueList.addEventListener('click', (e) => {
 function applyHostModeState() {
     if (!state.currentVideo) {
         activePlayerVideoId = null;
+        directFallbackToEmbedId = null;
+        lastLoadedYtVideoId = null;
         stopDirectVideoStream();
-        if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+        setYtPlayerVisible(false);
         return;
     }
 
@@ -938,20 +1189,33 @@ function applyHostModeState() {
 
     if (!hostMode) return;
 
-    if (videoId !== activePlayerVideoId) {
+    const isNewTrack = videoId !== activePlayerVideoId;
+    if (isNewTrack) {
         activePlayerVideoId = videoId;
-        stopDirectVideoStream();
+        directFallbackToEmbedId = null;
+        lastLoadedYtVideoId = null;
+    }
+
+    // Always use Direct Clean 1080p+ HD Stream so no YouTube UI/pause menus ever show
+    if (shouldForceDirectStream(videoId)) {
+        if (isNewTrack || !directVideoMode || directVideoId !== videoId) {
+            startDirectVideoStream(videoId, isNewTrack, state.currentTime || 0, false);
+            return;
+        }
     }
 
     if (directVideoMode && nativeVideo) {
-        const vol = Math.max(0, Math.min(1, (state.volume ?? 50) / 100));
+        const vol = Math.max(0.05, Math.min(1, (state.volume ?? 50) / 100));
         if (directHasSeparateAudio && nativeAudio) {
+            nativeVideo.muted = true;
+            nativeAudio.muted = false;
             nativeAudio.volume = vol;
         } else {
+            nativeVideo.muted = false;
             nativeVideo.volume = vol;
         }
         if (state.isPlaying) {
-            if (nativeVideo.paused || (directHasSeparateAudio && nativeAudio && nativeAudio.paused)) {
+            if (directStreamReadySrcSet && (nativeVideo.paused || (directHasSeparateAudio && nativeAudio && nativeAudio.paused))) {
                 playNativeVideoSafely();
             }
         } else {
@@ -960,17 +1224,29 @@ function applyHostModeState() {
         return;
     }
 
+    // Fallback to YouTube IFrame only if Direct Stream failed
+    setYtPlayerVisible(true);
     if (!playerReady || !ytPlayer || !ytPlayer.loadVideoById) return;
 
-    let currentUrl = ytPlayer.getVideoUrl ? ytPlayer.getVideoUrl() : '';
-    if (!currentUrl || !currentUrl.includes(videoId)) {
-        ytPlayer.loadVideoById(videoId);
+    if (lastLoadedYtVideoId !== videoId) {
+        lastLoadedYtVideoId = videoId;
+        ytPlayer.loadVideoById({
+            videoId: videoId,
+            suggestedQuality: 'hd1080'
+        });
+        if (typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+        ytPlayer.setVolume(state.volume ?? 50);
+        return;
     }
-    
-    if (state.isPlaying) ytPlayer.playVideo();
-    else ytPlayer.pauseVideo();
-    
-    ytPlayer.setVolume(state.volume);
+
+    if (state.isPlaying) {
+        if (typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+        ytPlayer.playVideo();
+    } else {
+        ytPlayer.pauseVideo();
+    }
+
+    ytPlayer.setVolume(state.volume ?? 50);
 }
 
 function updateProgress(curr, dur) {
@@ -983,6 +1259,9 @@ function updateProgress(curr, dur) {
         progressFill.style.width = `0%`;
         timeNow.textContent = '0:00';
         timeTotal.textContent = '0:00';
+    }
+    if (typeof updateActiveLyricLine === 'function') {
+        updateActiveLyricLine(curr);
     }
 }
 
@@ -1015,8 +1294,8 @@ btnSkip.addEventListener('click', () => {
 function resetSkipBtn() {
     skipCount = 0;
     skipLabel.textContent = "ข้ามเลย";
-    skipLabel.className = "text-[9px] mt-0.5";
-    btnSkip.className = "flex-1 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 rounded-lg py-2 flex flex-col items-center transition relative overflow-hidden";
+    skipLabel.className = "text-[10px] font-medium";
+    btnSkip.className = "bg-red-950/30 hover:bg-red-900/45 border border-red-500/35 text-red-400 rounded-xl py-2 px-3 flex flex-col items-center justify-center gap-0.5 transition active:scale-95 relative overflow-hidden shadow-sm";
 }
 
 // --- Actions ---
@@ -1061,6 +1340,7 @@ volUp.addEventListener('click', () => socket.emit('volume-control', Math.min(100
 if (qualitySelect) {
     qualitySelect.addEventListener('change', (e) => {
         const val = e.target.value;
+        directFallbackToEmbedId = null;
         socket.emit('quality-control', val);
         showToast(`ตั้งค่าความคมชัดเป็น: ${e.target.options[e.target.selectedIndex].text}`, 'info');
     });
@@ -1441,7 +1721,6 @@ const SHOWCASE_DURATION_SEC = 10;                 // Show Map/Radar in place of 
 let autoShowcaseInterval = null;
 let showcaseCountdownTimer = null;
 let showcaseRemainingSec = 0;
-let wasPanelOpenBeforeShowcase = false;
 
 // Soft Web Audio Chime & Reliable Thai Voice Alert System (Works on Host even when triggered via Socket.io)
 let softAudioCtx = null;
@@ -1653,6 +1932,16 @@ function playSoftAlertChime(type = 'rain') {
 function emitNavStatePatch(patch) {
     if (isApplyingRemoteNav) return;
     socket.emit('sync-nav-state', patch);
+}
+
+function emitLyricsStateSync() {
+    if (isApplyingRemoteNav) return;
+    emitNavStatePatch({
+        lyricsVisible: lyricsVisible,
+        lyricsOverlayDismissed: overlayDismissedForTrack,
+        lyricsUserShiftSec: lyricsUserShiftSec,
+        lyricsCinemaMode: lyricsCinemaMode
+    });
 }
 
 function speakBrowserFallback(text) {
@@ -1950,7 +2239,7 @@ function renderWeatherCardUI(info, locLabel) {
 async function analyzeWeatherAtCoords(lat, lon) {
     try {
         // Fetch Open-Meteo real-time weather
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation_probability&timezone=auto`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,precipitation_probability,weather_code,wind_speed_10m&hourly=precipitation_probability&timezone=auto`;
         const resp = await fetch(url);
         const data = await resp.json();
         const curr = data?.current;
@@ -1961,11 +2250,22 @@ async function analyzeWeatherAtCoords(lat, lon) {
         const wind = Math.round(curr.wind_speed_10m ?? 5);
         const code = curr.weather_code ?? 0;
 
-        // Find current hour precipitation probability
-        let rainProb = 0;
-        if (data?.hourly?.precipitation_probability && Array.isArray(data.hourly.precipitation_probability)) {
-            const nowHour = new Date().getHours();
-            rainProb = data.hourly.precipitation_probability[nowHour] ?? data.hourly.precipitation_probability[0] ?? 0;
+        // Find current hour precipitation probability matched against location timezone (curr.time & data.hourly.time)
+        let rainProb = typeof curr.precipitation_probability === 'number' ? Math.round(curr.precipitation_probability) : 0;
+        const hourlyProbs = data?.hourly?.precipitation_probability;
+        const hourlyTimes = data?.hourly?.time;
+        if (Array.isArray(hourlyProbs) && hourlyProbs.length > 0) {
+            let hourIdx = -1;
+            if (typeof curr.time === 'string' && Array.isArray(hourlyTimes)) {
+                const currentHourPrefix = curr.time.slice(0, 13); // "YYYY-MM-DDTHH" in target timezone
+                hourIdx = hourlyTimes.findIndex(t => typeof t === 'string' && t.slice(0, 13) === currentHourPrefix);
+            }
+            if (hourIdx < 0) {
+                hourIdx = Math.min(new Date().getHours(), hourlyProbs.length - 1);
+            }
+            const currHourProb = hourlyProbs[hourIdx] ?? hourlyProbs[0] ?? 0;
+            const nextHourProb = hourlyProbs[Math.min(hourIdx + 1, hourlyProbs.length - 1)] ?? currHourProb;
+            rainProb = Math.max(rainProb, Math.round(Math.max(currHourProb, nextHourProb)));
         }
         if ((curr.rain || 0) > 0 || (curr.precipitation || 0) > 0) {
             rainProb = Math.max(rainProb, 85);
@@ -2389,7 +2689,7 @@ function closeSplitRadarPanel(skipSync = false) {
     showcaseCountdownTimer = null;
     clearWeatherZoomAnimation();
     splitRadarOpen = false;
-    document.body.classList.remove('split-radar-active', 'radar-expanded', 'nav-radar-showcase');
+    document.body.classList.remove('split-radar-active', 'nav-radar-showcase');
     if (radarShowcaseBanner) radarShowcaseBanner.classList.add('hidden');
 
     // Trigger a soft return glow animation on the GPS / Radar quick buttons when Control Panel fades back in
@@ -2532,6 +2832,11 @@ async function calculateAndPreviewRoute(destLat, destLon, destName) {
     });
 
     speakThaiText(`พบเส้นทางไปยัง ${destName} ระยะทาง ${distanceKm} กิโลเมตร ใช้เวลาเดินทางประมาณ ${durationMin} นาที กรุณาตรวจสอบเส้นทางและกดเริ่มนำทาง`);
+
+    // Proactively analyze weather ahead along the entire route (Origin 0% -> Midpoint 50% -> Destination 100%)
+    if (typeof analyzeRouteWeatherAhead === 'function') {
+        analyzeRouteWeatherAhead(route.geometry, startLat, startLon, destLat, destLon, destName);
+    }
 }
 
 async function processRouteLinkInput() {
@@ -2740,6 +3045,9 @@ function cancelNavigation(silent = false, skipSync = false) {
         destMarker = null;
     }
 
+    const routeWeatherCard = $('route-weather-ahead-card');
+    if (routeWeatherCard) routeWeatherCard.classList.add('hidden');
+
     renderNavStepUI('input');
 
     if (!skipSync) {
@@ -2747,6 +3055,7 @@ function cancelNavigation(silent = false, skipSync = false) {
             step: 'input',
             destination: null,
             liveRoute: null,
+            routeWeatherAhead: null,
             hasAlerted90Pct: false
         });
     }
@@ -2788,7 +3097,39 @@ async function applyRemoteNavState(remote, isInitial = false) {
             renderWeatherCardUI(currentWeatherInfo, userCoords?.label);
         }
 
+        if (remote.routeWeatherAhead && typeof renderRouteWeatherAheadUI === 'function') {
+            renderRouteWeatherAheadUI(remote.routeWeatherAhead);
+        } else if (!remote.destination) {
+            const rCard = $('route-weather-ahead-card');
+            if (rCard) rCard.classList.add('hidden');
+        }
+
         hasAlerted90Pct = Boolean(remote.hasAlerted90Pct);
+
+        // --- Lyrics State Sync (Mobile → Host) ---
+        let lyricsStateChanged = false;
+        if (typeof remote.lyricsVisible === 'boolean') {
+            const remoteEffectivelyVisible = remote.lyricsVisible && !Boolean(remote.lyricsOverlayDismissed);
+            const localEffectivelyVisible = lyricsVisible && !overlayDismissedForTrack;
+            if (remoteEffectivelyVisible !== localEffectivelyVisible) {
+                lyricsVisible = remote.lyricsVisible;
+                overlayDismissedForTrack = Boolean(remote.lyricsOverlayDismissed);
+                lyricsStateChanged = true;
+            }
+        }
+        if (typeof remote.lyricsUserShiftSec === 'number' && remote.lyricsUserShiftSec !== lyricsUserShiftSec) {
+            lyricsUserShiftSec = remote.lyricsUserShiftSec;
+            updateLyricOffsetBadges();
+            updateActiveLyricLine(getPrecisePlaybackTime(), true);
+        }
+        if (typeof remote.lyricsCinemaMode === 'boolean' && remote.lyricsCinemaMode !== lyricsCinemaMode) {
+            lyricsCinemaMode = remote.lyricsCinemaMode;
+            if (lyricsOverlay) lyricsOverlay.classList.toggle('lyrics-cinema-mode', lyricsCinemaMode);
+            setTimeout(() => { if (currentActiveLyricIdx >= 0) smoothScrollOverlayReelToActive(currentActiveLyricIdx); }, 60);
+        }
+        if (lyricsStateChanged) {
+            updateLyricsToggleButtonsUI();
+        }
 
         if (remote.step === 'input' || !remote.destination) {
             if (activeNavigation || pendingDestination) {
@@ -2890,6 +3231,17 @@ socket.on('nav-alert-broadcast', (payload) => {
         playSoftAlertChime('rain');
         if (payload.voiceText) speakThaiText(payload.voiceText, true);
         triggerRadarShowcase20s(false, payload.title || `🧭 เริ่มนำทาง: ${payload.destName || ''}`);
+    } else if (payload.type === 'route-weather-warning') {
+        playSoftAlertChime('rain');
+        if (payload.voiceText) speakThaiText(payload.voiceText, true);
+        if (payload.routeWeatherAhead && typeof renderRouteWeatherAheadUI === 'function') {
+            renderRouteWeatherAheadUI(payload.routeWeatherAhead);
+        }
+        showToast(`🌧️ พยากรณ์ล่วงหน้าตามเส้นทาง: ${payload.summary || 'พบโอกาสฝนตกระหว่างทาง'}`, 'info');
+    } else if (payload.type === 'lyric-spotlight') {
+        if (payload.lyricLine) {
+            showLyricSpotlightFade(payload.lyricLine, payload.senderName || 'นักร้องนำ');
+        }
     }
 });
 
@@ -3004,6 +3356,15 @@ const settingsDanmakuTts = $('settings-danmaku-tts');
 const settingsMapStyle = $('settings-map-style');
 const settingsRefreshGpsBtn = $('settings-refresh-gps-btn');
 
+// Auto-DJ Settings Refs
+const autodjStatusBadge = $('autodj-status-badge');
+const settingsAutodjToggle = $('settings-autodj-toggle');
+const autodjOptionsWrap = $('autodj-options-wrap');
+const settingsAutodjMode = $('settings-autodj-mode');
+const settingsAutodjCustom = $('settings-autodj-custom');
+const settingsAutodjCustomBtn = $('settings-autodj-custom-btn');
+const settingsAutodjPlayNowBtn = $('settings-autodj-play-now-btn');
+
 // 5-Tap Unlock Refs
 const secretTestUnlockBtn = $('secret-test-unlock-btn');
 const modalGear5Tap = $('modal-gear-5tap');
@@ -3027,6 +3388,43 @@ let secretTapResetTimer = null;
 let testLabUnlocked = false;
 let simDriveTimer = null;
 
+function syncAutoDjSettingsUI() {
+    const enabled = state.autoDjEnabled !== false;
+    const mode = state.autoDjMode || 'khlerm';
+    const customQuery = state.autoDjCustomQuery || '';
+    const shortLabel = getAutoDjModeShortLabel(mode, customQuery);
+
+    if (settingsAutodjToggle) {
+        settingsAutodjToggle.checked = enabled;
+    }
+    if (settingsAutodjMode && settingsAutodjMode.value !== mode) {
+        settingsAutodjMode.value = mode;
+    }
+    if (settingsAutodjCustom && document.activeElement !== settingsAutodjCustom) {
+        settingsAutodjCustom.value = customQuery;
+    }
+    if (autodjOptionsWrap) {
+        autodjOptionsWrap.classList.toggle('opacity-50', !enabled);
+    }
+    if (autodjStatusBadge) {
+        if (enabled) {
+            autodjStatusBadge.textContent = `เปิดอยู่ • ${shortLabel}`;
+            autodjStatusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-purple-950/70 text-purple-300 border border-purple-500/40 font-medium truncate max-w-[170px]';
+        } else {
+            autodjStatusBadge.textContent = 'ปิดอยู่';
+            autodjStatusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-black/60 text-brand-light/40 border border-brand-deep/50 font-medium';
+        }
+    }
+
+    document.querySelectorAll('[data-autodj-preset]').forEach((btn) => {
+        const preset = btn.getAttribute('data-autodj-preset');
+        const isSelected = preset === mode && !customQuery;
+        btn.className = isSelected
+            ? 'px-2.5 py-1.5 rounded-lg text-[10px] font-semibold text-left border transition flex items-center gap-1.5 bg-purple-950/70 border-purple-400/70 text-white shadow-sm shadow-purple-500/20'
+            : 'px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white hover:border-purple-500/30';
+    });
+}
+
 function openSettingsModal() {
     if (!settingsModal) return;
     if (settingsNameInput) settingsNameInput.value = myProfile.name || '';
@@ -3034,6 +3432,7 @@ function openSettingsModal() {
     if (settingsNavTts) settingsNavTts.checked = navTtsEnabled;
     if (settingsDanmakuTts && ttsToggle) settingsDanmakuTts.checked = ttsToggle.checked;
     if (settingsMapStyle) settingsMapStyle.value = mapStyleMode;
+    syncAutoDjSettingsUI();
     updateProfileUI();
     settingsModal.classList.remove('hidden');
 }
@@ -3162,6 +3561,72 @@ if (saveProfileBtn) {
         updateProfileUI();
         socket.emit('set-profile', myProfile);
         showToast('บันทึกโปรไฟล์เรียบร้อยแล้ว!', 'info');
+    });
+}
+
+// Auto-DJ Settings Event Listeners
+if (settingsAutodjToggle) {
+    settingsAutodjToggle.addEventListener('change', (e) => {
+        socket.emit('autodj-config', {
+            enabled: e.target.checked
+        });
+    });
+}
+
+if (settingsAutodjMode) {
+    settingsAutodjMode.addEventListener('change', (e) => {
+        if (settingsAutodjCustom) settingsAutodjCustom.value = '';
+        socket.emit('autodj-config', {
+            enabled: true,
+            mode: e.target.value,
+            customQuery: ''
+        });
+    });
+}
+
+document.querySelectorAll('[data-autodj-preset]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const preset = btn.getAttribute('data-autodj-preset');
+        if (!preset) return;
+        if (settingsAutodjCustom) settingsAutodjCustom.value = '';
+        if (settingsAutodjMode) settingsAutodjMode.value = preset;
+        socket.emit('autodj-config', {
+            enabled: true,
+            mode: preset,
+            customQuery: ''
+        });
+    });
+});
+
+if (settingsAutodjCustomBtn) {
+    settingsAutodjCustomBtn.addEventListener('click', () => {
+        const customVal = (settingsAutodjCustom?.value || '').trim().substring(0, 50);
+        socket.emit('autodj-config', {
+            enabled: true,
+            mode: settingsAutodjMode?.value || state.autoDjMode || 'khlerm',
+            customQuery: customVal
+        });
+    });
+}
+
+if (settingsAutodjCustom) {
+    settingsAutodjCustom.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && settingsAutodjCustomBtn) {
+            settingsAutodjCustomBtn.click();
+        }
+    });
+}
+
+if (settingsAutodjPlayNowBtn) {
+    settingsAutodjPlayNowBtn.addEventListener('click', () => {
+        const modeVal = settingsAutodjMode?.value || state.autoDjMode || 'khlerm';
+        const customVal = (settingsAutodjCustom?.value || '').trim().substring(0, 50);
+        closeSettingsModal();
+        showToast('🎧 กำลังสุ่มหาเพลง Auto-DJ ตามโหมดที่เลือก...', 'info');
+        socket.emit('autodj-play-now', {
+            mode: modeVal,
+            customQuery: customVal
+        });
     });
 }
 
@@ -3558,4 +4023,1150 @@ if (btnTestIntro) {
         startIntroSequence(true);
     });
 }
+
+// ============================================================================
+// FEATURE 1: SYNCED LYRICS OVERLAY & ONE-CLICK KARAOKE SWITCH
+// ============================================================================
+const lyricsOverlay = $('lyrics-overlay');
+const lyricsOverlayClose = $('lyrics-overlay-close');
+const lyricsKaraokePill = $('lyrics-karaoke-pill');
+const lyricsCountdownPill = $('lyrics-countdown-pill');
+const lyricsOverlayOffsetLabel = $('lyrics-overlay-offset-label');
+const btnLyricsSendDanmaku = $('btn-lyrics-send-danmaku');
+const btnLyricsCinema = $('btn-lyrics-cinema');
+const lyricsStage = $('lyrics-stage');
+const lyricsFallbackStage = $('lyrics-fallback-stage');
+const lyricsReelViewport = $('lyrics-reel-viewport');
+const lyricsReelTrack = $('lyrics-reel-track');
+const lyricsLinePrev = $('lyrics-line-prev');
+const lyricsLineActive = $('lyrics-line-active');
+const lyricsLineNext = $('lyrics-line-next');
+const lyricsLineProgress = $('lyrics-line-progress');
+const lyricsRestorePill = $('lyrics-restore-pill');
+const playerLyricsBtn = $('player-lyrics-btn');
+const playerLyricsBtnLabel = $('player-lyrics-btn-label');
+const btnToggleLyrics = $('btn-toggle-lyrics');
+const btnLyricsLabel = $('btn-lyrics-label');
+const btnKaraokeSwitch = $('btn-karaoke-switch');
+const btnKaraokeLabel = $('btn-karaoke-label');
+const inlineLyricsBox = $('inline-lyrics-box');
+const inlineLyricsCountdown = $('inline-lyrics-countdown');
+const inlineLyricsOffsetBadge = $('inline-lyrics-offset-badge');
+const btnInlineToggleOverlay = $('btn-inline-toggle-overlay');
+const inlineToggleOverlayLabel = $('inline-toggle-overlay-label');
+const btnInlineLyricsDanmaku = $('btn-inline-lyrics-danmaku');
+const btnInlineLyricsCopy = $('btn-inline-lyrics-copy');
+const btnInlineLyricsExpand = $('btn-inline-lyrics-expand');
+const iconInlineLyricsExpand = $('icon-inline-lyrics-expand');
+const btnLyricsRecenter = $('btn-lyrics-recenter');
+const inlineLyricsScroll = $('inline-lyrics-scroll');
+const inlineLyricsList = $('inline-lyrics-list');
+const inlineLyricsSource = $('inline-lyrics-source');
+const lyricSpotlightBanner = $('lyric-spotlight-banner');
+const lyricSpotlightUser = $('lyric-spotlight-user');
+const lyricSpotlightText = $('lyric-spotlight-text');
+
+let lyricsVisible = true;
+let overlayDismissedForTrack = false;
+let lyricsCinemaMode = false;
+let inlineLyricsExpanded = false;
+let currentLyricsTrackKey = null;
+let currentLyricsData = null; // { found, synced, lines: [{ time, text }], source }
+let currentActiveLyricIdx = -1;
+let karaokeSwitchPending = false;
+let inlineLyricsScrollRaf = null;
+let isAutoScrollingInlineLyrics = false;
+let userManualScrollUntil = 0;
+let lastKnownPlaybackTime = 0;
+let lastPlaybackSyncPerf = performance.now();
+let lyricSpotlightFadeTimer = null;
+
+function setLyricsPanelsFadeState(showOverlay, _showInlineUnused, canShowOnScreen = false) {
+    const nextOverlayActive = Boolean(showOverlay);
+    const hasActiveTrackLyrics = Boolean(canShowOnScreen);
+
+    if (lyricsOverlay) {
+        lyricsOverlay.classList.remove('hidden');
+        const wasActive = lyricsOverlay.classList.contains('lyrics-overlay-active');
+        lyricsOverlay.classList.toggle('lyrics-overlay-active', nextOverlayActive);
+        if (!wasActive && nextOverlayActive && currentActiveLyricIdx >= 0) {
+            setTimeout(() => smoothScrollOverlayReelToActive(currentActiveLyricIdx), 40);
+        }
+    }
+    // Control panel button (#btn-toggle-lyrics) reflects whether lyrics are currently shown on the main video screen
+    const isOverlayEnabledByUser = Boolean(lyricsVisible && !overlayDismissedForTrack);
+    if (btnToggleLyrics) {
+        btnToggleLyrics.className = isOverlayEnabledByUser
+            ? 'bg-brand-peri/25 hover:bg-brand-peri/35 border border-brand-peri text-white rounded-xl py-2 px-2.5 text-[11px] font-semibold transition flex items-center justify-center gap-1.5 shadow-sm shadow-brand-peri/20'
+            : 'bg-[#0d1524] hover:bg-brand-deep/70 border border-brand-peri/35 text-brand-peri rounded-xl py-2 px-2.5 text-[11px] font-medium transition flex items-center justify-center gap-1.5 active:scale-95';
+    }
+    if (btnLyricsLabel) {
+        btnLyricsLabel.textContent = isOverlayEnabledByUser ? 'ซ่อนเนื้อเพลงบนจอ' : 'เนื้อเพลงขึ้นจอ';
+    }
+    // Floating restore pill on video player: smoothly fades in when song has active lyrics & overlay is hidden
+    if (lyricsRestorePill) {
+        lyricsRestorePill.classList.toggle('lyrics-btn-fade-active', hasActiveTrackLyrics && !nextOverlayActive);
+    }
+    // Bottom-right player lyrics button: smoothly fades in when song has active lyrics, fades out when no lyrics/ended
+    if (playerLyricsBtn) {
+        playerLyricsBtn.classList.toggle('lyrics-btn-fade-active', hasActiveTrackLyrics);
+        playerLyricsBtn.classList.toggle('bg-brand-peri', nextOverlayActive);
+        playerLyricsBtn.classList.toggle('text-primary', nextOverlayActive);
+        playerLyricsBtn.classList.toggle('border-brand-peri', nextOverlayActive);
+        playerLyricsBtn.classList.toggle('font-semibold', nextOverlayActive);
+        playerLyricsBtn.classList.toggle('bg-[#0a0a0a]/80', !nextOverlayActive);
+        playerLyricsBtn.classList.toggle('text-brand-light/85', !nextOverlayActive);
+        playerLyricsBtn.classList.toggle('border-brand-deep/50', !nextOverlayActive);
+    }
+    if (playerLyricsBtnLabel) {
+        playerLyricsBtnLabel.textContent = nextOverlayActive ? 'ซ่อนบนจอ' : 'แสดงขึ้นจอ';
+    }
+}
+
+function showLyricSpotlightFade(lyricLine, senderName = 'นักร้องนำ') {
+    if (!lyricSpotlightBanner || !lyricLine) return;
+    if (lyricSpotlightUser) {
+        lyricSpotlightUser.textContent = `🎤 ${senderName} • แสดงเนื้อเพลงขึ้นจอ`;
+    }
+    if (lyricSpotlightText) {
+        lyricSpotlightText.textContent = `♪ ${lyricLine} ♪`;
+    }
+    lyricSpotlightBanner.classList.add('spotlight-fade-active');
+    if (lyricSpotlightFadeTimer) clearTimeout(lyricSpotlightFadeTimer);
+    lyricSpotlightFadeTimer = setTimeout(() => {
+        lyricSpotlightBanner.classList.remove('spotlight-fade-active');
+    }, 3800);
+}
+
+// Default 2.0s slower (delayed) so YouTube MVs match LRC audio timestamps, plus user fine-tuning
+const LYRICS_BASE_DELAY_SEC = 2.0;
+let lyricsUserShiftSec = 0.0; // Positive = slower (more delay), Negative = faster
+
+function getEffectiveLyricDelaySec() {
+    return LYRICS_BASE_DELAY_SEC + lyricsUserShiftSec;
+}
+
+function updateLyricOffsetBadges() {
+    const totalDelay = getEffectiveLyricDelaySec();
+    // Display as negative offset when delayed (e.g. -2.0s means lyrics appear 2.0s later/slower)
+    const displayVal = -totalDelay;
+    const formatted = `${displayVal > 0 ? '+' : ''}${displayVal.toFixed(1)}s`;
+    if (lyricsOverlayOffsetLabel) lyricsOverlayOffsetLabel.textContent = formatted;
+    if (inlineLyricsOffsetBadge) inlineLyricsOffsetBadge.textContent = formatted;
+}
+updateLyricOffsetBadges();
+
+function adjustLyricSyncOffset(action, skipSync = false) {
+    if (action === 'reset') {
+        lyricsUserShiftSec = 0.0;
+        showToast('⏱️ รีเซ็ตจังหวะเนื้อเพลงเป็นค่ามาตรฐาน (ช้าลง 2.0 วินาที)', 'info');
+    } else {
+        const delta = parseFloat(action);
+        if (!isNaN(delta)) {
+            // If user clicks "-0.5s" (make lyrics slower), increase delay by +0.5s
+            // If user clicks "+0.5s" (make lyrics faster), decrease delay by -0.5s
+            lyricsUserShiftSec = Math.max(-8.0, Math.min(10.0, lyricsUserShiftSec - delta));
+            const totalDelay = getEffectiveLyricDelaySec();
+            const desc = totalDelay >= 0
+                ? `ช้าลง ${totalDelay.toFixed(1)} วินาที`
+                : `เร็วขึ้น ${Math.abs(totalDelay).toFixed(1)} วินาที`;
+            showToast(`⏱️ ปรับจังหวะเนื้อเพลง: ${desc}`, 'info');
+        }
+    }
+    updateLyricOffsetBadges();
+    updateActiveLyricLine(getPrecisePlaybackTime(), true);
+    if (!skipSync) emitLyricsStateSync();
+}
+
+document.querySelectorAll('[data-lyric-offset]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const act = btn.getAttribute('data-lyric-offset');
+        adjustLyricSyncOffset(act);
+    });
+});
+
+// Detect manual scrolling in #inline-lyrics-scroll so auto-scroll doesn't fight the user
+if (inlineLyricsScroll) {
+    const markManualScroll = () => {
+        if (isAutoScrollingInlineLyrics) return;
+        userManualScrollUntil = Date.now() + 4500;
+        if (btnLyricsRecenter) btnLyricsRecenter.classList.remove('hidden');
+    };
+    inlineLyricsScroll.addEventListener('wheel', markManualScroll, { passive: true });
+    inlineLyricsScroll.addEventListener('touchmove', markManualScroll, { passive: true });
+}
+
+if (btnLyricsRecenter) {
+    btnLyricsRecenter.addEventListener('click', () => {
+        userManualScrollUntil = 0;
+        btnLyricsRecenter.classList.add('hidden');
+        if (inlineLyricsList && currentActiveLyricIdx >= 0) {
+            const activeEl = inlineLyricsList.querySelector(`[data-lyric-idx="${currentActiveLyricIdx}"]`);
+            if (activeEl) smoothScrollInlineLyricsToCenter(activeEl, false, true);
+        }
+    });
+}
+
+function smoothScrollInlineLyricsToCenter(activeEl, immediate = false, forceOverrideManual = false) {
+    const container = inlineLyricsScroll || inlineLyricsBox;
+    if (!container || !activeEl) return;
+
+    if (!forceOverrideManual && !immediate && Date.now() < userManualScrollUntil) {
+        return;
+    }
+    if (btnLyricsRecenter) btnLyricsRecenter.classList.add('hidden');
+
+    const targetTop = Math.max(
+        0,
+        activeEl.offsetTop - (container.clientHeight / 2) + (activeEl.offsetHeight / 2)
+    );
+
+    if (immediate) {
+        if (inlineLyricsScrollRaf) cancelAnimationFrame(inlineLyricsScrollRaf);
+        isAutoScrollingInlineLyrics = true;
+        container.scrollTop = targetTop;
+        setTimeout(() => { isAutoScrollingInlineLyrics = false; }, 40);
+        return;
+    }
+
+    const startTop = container.scrollTop;
+    const distance = targetTop - startTop;
+    if (Math.abs(distance) < 2) return;
+
+    if (inlineLyricsScrollRaf) cancelAnimationFrame(inlineLyricsScrollRaf);
+    const duration = 500;
+    const startTime = performance.now();
+
+    function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        // Smooth spring-like cubic-bezier ease-out
+        const eased = 1 - Math.pow(1 - progress, 3.6);
+        isAutoScrollingInlineLyrics = true;
+        container.scrollTop = startTop + distance * eased;
+        if (progress < 1) {
+            inlineLyricsScrollRaf = requestAnimationFrame(step);
+        } else {
+            inlineLyricsScrollRaf = null;
+            setTimeout(() => { isAutoScrollingInlineLyrics = false; }, 40);
+        }
+    }
+    inlineLyricsScrollRaf = requestAnimationFrame(step);
+}
+
+function smoothScrollOverlayReelToActive(activeIdx) {
+    if (!lyricsReelViewport || !lyricsReelTrack) return;
+    const activeItem = lyricsReelTrack.querySelector(`[data-reel-idx="${activeIdx}"]`);
+    if (!activeItem) return;
+
+    const viewportHeight = lyricsReelViewport.clientHeight || (lyricsCinemaMode ? 176 : 96);
+    const itemCenter = activeItem.offsetTop + (activeItem.offsetHeight / 2);
+    const translateY = (viewportHeight / 2) - itemCenter;
+    lyricsReelTrack.style.transform = `translate3d(0, ${translateY.toFixed(1)}px, 0)`;
+}
+
+function getPrecisePlaybackTime() {
+    if (!state.currentVideo) return 0;
+    if (hostMode) {
+        if (directVideoMode && nativeVideo && !nativeVideo.paused) {
+            if (directHasSeparateAudio && nativeAudio && !nativeAudio.paused) {
+                return nativeAudio.currentTime || 0;
+            }
+            return nativeVideo.currentTime || 0;
+        }
+        if (playerReady && ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+            return ytPlayer.getCurrentTime() || 0;
+        }
+    }
+    if (state.isPlaying && lastKnownPlaybackTime > 0) {
+        const deltaSec = Math.min(1.5, Math.max(0, (performance.now() - lastPlaybackSyncPerf) / 1000));
+        return lastKnownPlaybackTime + deltaSec;
+    }
+    return state.currentTime || 0;
+}
+
+function updateLyricsToggleButtonsUI() {
+    const hasValidLyrics = Boolean(
+        state.currentVideo &&
+        currentLyricsData &&
+        currentLyricsData.found &&
+        Array.isArray(currentLyricsData.lines) &&
+        currentLyricsData.lines.length > 0
+    );
+    if (!hasValidLyrics) {
+        setLyricsPanelsFadeState(false, false, false);
+    } else if (!lyricsVisible || overlayDismissedForTrack) {
+        setLyricsPanelsFadeState(false, false, true);
+    } else {
+        updateActiveLyricLine(getPrecisePlaybackTime(), true);
+    }
+    if (nowPlayingCard) {
+        nowPlayingCard.scrollTop = 0;
+    }
+}
+
+function toggleLyricsDisplay(forceState, skipSync = false) {
+    const currentlyEnabled = Boolean(lyricsVisible && !overlayDismissedForTrack);
+    const nextState = typeof forceState === 'boolean' ? forceState : !currentlyEnabled;
+    lyricsVisible = nextState;
+    overlayDismissedForTrack = !nextState;
+    updateLyricsToggleButtonsUI();
+    if (!skipSync) emitLyricsStateSync();
+    if (nextState && state.currentVideo) {
+        if (!currentLyricsData) {
+            syncLyricsForCurrentTrack(true);
+        } else if (!currentLyricsData.found || !Array.isArray(currentLyricsData.lines) || currentLyricsData.lines.length === 0) {
+            setLyricsPanelsFadeState(false, false, false);
+            showToast('🎵 เพลงนี้ไม่มีข้อมูลเนื้อเพลงในระบบ แผงเนื้อเพลงจึงถูกซ่อนไว้อัตโนมัติ', 'info');
+        } else {
+            updateActiveLyricLine(getPrecisePlaybackTime(), true);
+            setTimeout(() => {
+                if (currentActiveLyricIdx >= 0) smoothScrollOverlayReelToActive(currentActiveLyricIdx);
+            }, 60);
+        }
+    }
+}
+
+function toggleVideoOverlayLyrics(forceShow) {
+    toggleLyricsDisplay(forceShow);
+}
+
+function updateKaraokeButtonUI() {
+    karaokeSwitchPending = false;
+    const isKaraoke = Boolean(state.currentVideo?.isKaraokeMode);
+    if (lyricsKaraokePill) {
+        lyricsKaraokePill.classList.toggle('hidden', !isKaraoke);
+    }
+    if (!btnKaraokeSwitch || !btnKaraokeLabel) return;
+    btnKaraokeSwitch.disabled = !state.currentVideo;
+    if (isKaraoke) {
+        btnKaraokeSwitch.className = 'bg-pink-600/30 hover:bg-pink-600/45 border border-pink-400 text-pink-200 rounded-xl py-2 px-2.5 text-[11px] font-semibold transition flex items-center justify-center gap-1.5 shadow-md shadow-pink-500/20';
+        btnKaraokeLabel.textContent = 'กลับเพลงต้นฉบับ';
+    } else {
+        btnKaraokeSwitch.className = 'bg-[#1a0f24] hover:bg-pink-950/70 border border-pink-500/35 text-pink-300 rounded-xl py-2 px-2.5 text-[11px] font-medium transition flex items-center justify-center gap-1.5 active:scale-95';
+        btnKaraokeLabel.textContent = 'สลับคาราโอเกะ';
+    }
+}
+
+function sendCurrentLyricLineToDanmaku() {
+    if (!state.currentVideo || !currentLyricsData || !currentLyricsData.found || !Array.isArray(currentLyricsData.lines)) {
+        return showToast('ยังไม่มีท่อนเนื้อเพลงให้ส่งขึ้นจอ', 'error');
+    }
+    const idx = Math.max(0, currentActiveLyricIdx);
+    const lineObj = currentLyricsData.lines[idx];
+    if (!lineObj || !lineObj.text) return;
+
+    const sender = myProfile.name || 'นักร้องนำ';
+    showLyricSpotlightFade(lineObj.text, sender);
+
+    socket.emit('send-danmaku', {
+        text: `🎤 ♪ ${lineObj.text} ♪`,
+        nickname: sender,
+        color: myProfile.color || '#ABD2FA',
+        tts: false
+    });
+    // Also broadcast via nav-alert so Host & all screens receive the lyric spotlight fade
+    socket.emit('trigger-nav-alert', {
+        type: 'lyric-spotlight',
+        lyricLine: lineObj.text,
+        senderName: sender
+    });
+    socket.emit('send-reaction', '🎶');
+    showToast(`✨ แสดงท่อน "${lineObj.text.slice(0, 28)}..." ขึ้นจอแบบ Fade แล้ว!`, 'info');
+}
+
+socket.on('new-danmaku', (d) => {
+    if (d && typeof d.text === 'string' && d.text.startsWith('🎤 ♪ ')) {
+        const cleanLyric = d.text.replace(/^🎤\s*♪\s*/, '').replace(/\s*♪\s*$/, '').trim();
+        if (cleanLyric) {
+            showLyricSpotlightFade(cleanLyric, d.nickname || 'นักร้องนำ');
+        }
+    }
+});
+
+function copyAllLyricsToClipboard() {
+    if (!currentLyricsData || !currentLyricsData.found || !Array.isArray(currentLyricsData.lines) || currentLyricsData.lines.length === 0) {
+        return showToast('ไม่มีเนื้อเพลงให้คัดลอกสำหรับเพลงนี้', 'error');
+    }
+    const title = state.currentVideo?.title || 'เนื้อเพลง';
+    const fullText = `🎵 ${title}\n\n` + currentLyricsData.lines.map(l => l.text).join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullText).then(() => {
+            showToast('📋 คัดลอกเนื้อเพลงทั้งหมดเรียบร้อยแล้ว!', 'info');
+        }).catch(() => {
+            showToast('ไม่สามารถคัดลอกเนื้อเพลงได้', 'error');
+        });
+    }
+}
+
+if (btnLyricsSendDanmaku) {
+    btnLyricsSendDanmaku.addEventListener('click', () => sendCurrentLyricLineToDanmaku());
+}
+if (btnInlineLyricsDanmaku) {
+    btnInlineLyricsDanmaku.addEventListener('click', () => sendCurrentLyricLineToDanmaku());
+}
+if (btnInlineToggleOverlay) {
+    btnInlineToggleOverlay.addEventListener('click', () => toggleVideoOverlayLyrics());
+}
+if (lyricsRestorePill) {
+    lyricsRestorePill.addEventListener('click', () => toggleVideoOverlayLyrics(true));
+}
+if (btnInlineLyricsCopy) {
+    btnInlineLyricsCopy.addEventListener('click', () => copyAllLyricsToClipboard());
+}
+if (btnInlineLyricsExpand) {
+    btnInlineLyricsExpand.addEventListener('click', () => {
+        inlineLyricsExpanded = !inlineLyricsExpanded;
+        if (inlineLyricsScroll) {
+            inlineLyricsScroll.classList.toggle('lyrics-expanded', inlineLyricsExpanded);
+        }
+        if (iconInlineLyricsExpand) {
+            iconInlineLyricsExpand.className = inlineLyricsExpanded
+                ? 'fa-solid fa-down-left-and-up-right-to-center text-[8px] text-brand-peri'
+                : 'fa-solid fa-up-right-and-down-left-from-center text-[8px]';
+        }
+        setTimeout(() => {
+            if (inlineLyricsList && currentActiveLyricIdx >= 0) {
+                const activeEl = inlineLyricsList.querySelector(`[data-lyric-idx="${currentActiveLyricIdx}"]`);
+                if (activeEl) smoothScrollInlineLyricsToCenter(activeEl, false, true);
+            }
+        }, 180);
+    });
+}
+if (btnLyricsCinema) {
+    btnLyricsCinema.addEventListener('click', () => {
+        lyricsCinemaMode = !lyricsCinemaMode;
+        if (lyricsOverlay) {
+            lyricsOverlay.classList.toggle('lyrics-cinema-mode', lyricsCinemaMode);
+        }
+        emitLyricsStateSync();
+        setTimeout(() => {
+            if (currentActiveLyricIdx >= 0) smoothScrollOverlayReelToActive(currentActiveLyricIdx);
+        }, 180);
+    });
+}
+
+async function syncLyricsForCurrentTrack(forceFetch = false) {
+    if (!state.currentVideo) {
+        currentLyricsTrackKey = null;
+        currentLyricsData = null;
+        currentActiveLyricIdx = -1;
+        overlayDismissedForTrack = false;
+        setLyricsPanelsFadeState(false, false);
+        if (lyricsLineProgress) lyricsLineProgress.style.width = '0%';
+        if (lyricsCountdownPill) lyricsCountdownPill.classList.add('hidden');
+        if (inlineLyricsCountdown) inlineLyricsCountdown.classList.add('hidden');
+        if (inlineLyricsList) {
+            inlineLyricsList.innerHTML = '';
+        }
+        return;
+    }
+
+    const baseTitle = state.currentVideo.originalTitle || state.currentVideo.normalTitle || state.currentVideo.title || '';
+    const baseAuthor = state.currentVideo.normalAuthor || state.currentVideo.author || '';
+    const trackKey = `${state.currentVideo.id || ''}:${baseTitle}`;
+
+    // Automatically show lyrics overlay when user switches into Karaoke mode
+    if (state.currentVideo.isKaraokeMode && !lyricsVisible) {
+        lyricsVisible = true;
+        overlayDismissedForTrack = false;
+    }
+
+    if (!forceFetch && trackKey === currentLyricsTrackKey && currentLyricsData) {
+        updateLyricsToggleButtonsUI();
+        return;
+    }
+
+    currentLyricsTrackKey = trackKey;
+    currentLyricsData = null;
+    currentActiveLyricIdx = -1;
+    overlayDismissedForTrack = false;
+    userManualScrollUntil = 0;
+    if (btnLyricsRecenter) btnLyricsRecenter.classList.add('hidden');
+
+    // Keep lyrics panels smoothly faded out while searching so we never show an empty/loading box over the MV
+    setLyricsPanelsFadeState(false, false);
+    if (lyricsLineProgress) lyricsLineProgress.style.width = '0%';
+    if (lyricsCountdownPill) lyricsCountdownPill.classList.add('hidden');
+    if (inlineLyricsCountdown) inlineLyricsCountdown.classList.add('hidden');
+
+    try {
+        const dur = Math.round(state.duration || 220);
+        const qs = new URLSearchParams({
+            title: baseTitle,
+            author: baseAuthor,
+            duration: String(dur)
+        });
+        const resp = await fetch(`/api/lyrics?${qs.toString()}`);
+        const data = await resp.json();
+
+        if (currentLyricsTrackKey !== trackKey) return;
+        currentLyricsData = data;
+
+        if (inlineLyricsSource) {
+            inlineLyricsSource.textContent = data.found
+                ? (data.synced ? 'LRC ซิงค์' : 'Auto-Sync')
+                : 'ไม่พบ';
+        }
+
+        // If lyrics are NOT found, smoothly keep/fade out the lyrics panels
+        if (!data.found || !Array.isArray(data.lines) || data.lines.length === 0) {
+            setLyricsPanelsFadeState(false, false);
+            if (lyricsLineProgress) lyricsLineProgress.style.width = '0%';
+            if (inlineLyricsList) {
+                inlineLyricsList.innerHTML = '';
+            }
+            return;
+        }
+
+        // Build Smooth Vertical Scrolling Reel on Video Overlay (#lyrics-reel-track)
+        if (lyricsReelTrack && lyricsReelViewport) {
+            if (lyricsFallbackStage) lyricsFallbackStage.classList.add('hidden');
+            lyricsReelViewport.classList.remove('hidden');
+            lyricsReelTrack.innerHTML = data.lines.map((line, idx) => `
+                <div data-reel-idx="${idx}" data-lyric-time="${Number(line.time) || 0}" class="lyrics-reel-item reel-far text-center w-full">
+                    <span class="reel-lyric-text text-xs sm:text-base md:text-lg font-semibold leading-snug block truncate px-2">${escapeHtml(line.text)}</span>
+                </div>
+            `).join('');
+
+            lyricsReelTrack.querySelectorAll('[data-lyric-time]').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const sec = parseFloat(el.getAttribute('data-lyric-time'));
+                    if (!isNaN(sec)) {
+                        socket.emit('seek-to', Math.max(0, sec + getEffectiveLyricDelaySec()));
+                    }
+                });
+            });
+        }
+
+        // Build Inline Lyrics List with timestamps & karaoke wipe progress
+        if (inlineLyricsList) {
+            inlineLyricsList.innerHTML = data.lines.map((line, idx) => {
+                const lineSec = Math.max(0, (Number(line.time) || 0) + getEffectiveLyricDelaySec());
+                return `
+                <div data-lyric-idx="${idx}" data-lyric-time="${Number(line.time) || 0}" class="lyric-inline-item lyric-upcoming text-[11px] text-brand-light/55 hover:text-white cursor-pointer py-1.5 px-2.5 rounded-lg flex items-center gap-2 text-left">
+                    <span class="text-[9px] font-mono text-brand-light/35 shrink-0">${formatTime(lineSec)}</span>
+                    <span class="inline-lyric-text relative z-10 flex-1 leading-snug">${escapeHtml(line.text)}</span>
+                    <span class="lyric-inline-progress" style="width: 0%"></span>
+                </div>
+            `;
+            }).join('');
+
+            inlineLyricsList.querySelectorAll('[data-lyric-time]').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const sec = parseFloat(el.getAttribute('data-lyric-time'));
+                    if (!isNaN(sec)) {
+                        userManualScrollUntil = 0;
+                        if (btnLyricsRecenter) btnLyricsRecenter.classList.add('hidden');
+                        socket.emit('seek-to', Math.max(0, sec + getEffectiveLyricDelaySec()));
+                    }
+                });
+            });
+        }
+
+        updateActiveLyricLine(getPrecisePlaybackTime(), true);
+    } catch (err) {
+        console.warn('Lyrics fetch error:', err.message);
+        setLyricsPanelsFadeState(false, false);
+    }
+}
+
+function updateVocalCountdownUI(effectiveTime, lines, activeIdx) {
+    if (!lines || lines.length === 0) return;
+    let upcomingTime = -1;
+    let gapSpan = 0;
+
+    const firstLineTime = Number(lines[0]?.time) || 0;
+    if (effectiveTime < firstLineTime) {
+        upcomingTime = firstLineTime;
+        gapSpan = firstLineTime;
+    } else if (activeIdx + 1 < lines.length) {
+        const curStart = Number(lines[activeIdx]?.time) || 0;
+        const nextStart = Number(lines[activeIdx + 1]?.time) || 0;
+        gapSpan = nextStart - curStart;
+        upcomingTime = nextStart;
+    }
+
+    const remain = upcomingTime - effectiveTime;
+    const showCountdown = gapSpan >= 4.5 && remain <= 3.5 && remain > 0.15;
+    if (showCountdown) {
+        const secCeil = Math.ceil(remain);
+        const dots = '•'.repeat(Math.max(1, Math.min(3, secCeil)));
+        const badgeText = `🎤 เตรียมร้องใน ${secCeil} วิ ${dots}`;
+        const shortText = `🎤 ${secCeil}..`;
+        if (lyricsCountdownPill) {
+            lyricsCountdownPill.textContent = badgeText;
+            lyricsCountdownPill.classList.remove('hidden');
+        }
+        if (inlineLyricsCountdown) {
+            inlineLyricsCountdown.textContent = shortText;
+            inlineLyricsCountdown.classList.remove('hidden');
+        }
+    } else {
+        if (lyricsCountdownPill) lyricsCountdownPill.classList.add('hidden');
+        if (inlineLyricsCountdown) inlineLyricsCountdown.classList.add('hidden');
+    }
+}
+
+function updateActiveLyricLine(currentTimeSec, forceRender = false, isTicker = false) {
+    if (typeof currentTimeSec === 'number' && !isNaN(currentTimeSec) && !forceRender && !isTicker) {
+        lastKnownPlaybackTime = currentTimeSec;
+        lastPlaybackSyncPerf = performance.now();
+    }
+
+    if (!currentLyricsData || !currentLyricsData.found || !Array.isArray(currentLyricsData.lines) || currentLyricsData.lines.length === 0) {
+        setLyricsPanelsFadeState(false, false, false);
+        return;
+    }
+
+    const lines = currentLyricsData.lines;
+    const rawTime = Number(currentTimeSec) || 0;
+    // Delay lyrics by getEffectiveLyricDelaySec() (2.0s slower by default + user fine-tune)
+    const t = Math.max(0, rawTime - getEffectiveLyricDelaySec());
+
+    // Determine if all lyrics have finished playing (fade out smoothly after the last lyric line finishes)
+    const lastLineTime = Number(lines[lines.length - 1]?.time) || 0;
+    const lastLineHoldSec = 6.0;
+    const isLyricsEnded = (t > lastLineTime + lastLineHoldSec) || (state.duration > 20 && rawTime >= state.duration - 1.5);
+
+    const canShowOnScreen = Boolean(state.currentVideo) && !isLyricsEnded;
+    const shouldShowOverlay = canShowOnScreen && lyricsVisible && !overlayDismissedForTrack;
+    setLyricsPanelsFadeState(shouldShowOverlay, shouldShowOverlay, canShowOnScreen);
+
+    if (isLyricsEnded) {
+        if (lyricsCountdownPill) lyricsCountdownPill.classList.add('hidden');
+        if (inlineLyricsCountdown) inlineLyricsCountdown.classList.add('hidden');
+        return;
+    }
+
+    let activeIdx = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        if (t + 0.18 >= lines[i].time) {
+            activeIdx = i;
+        } else {
+            break;
+        }
+    }
+
+    // Update Vocal Entry Countdown badge ("🎤 เตรียมร้องใน 3.. 2.. 1..")
+    updateVocalCountdownUI(t, lines, activeIdx);
+
+    // Calculate smooth line progress percentage (0..100%)
+    const lineStart = Number(lines[activeIdx]?.time) || 0;
+    const nextLineStart = activeIdx + 1 < lines.length
+        ? Number(lines[activeIdx + 1].time)
+        : lineStart + lastLineHoldSec;
+    const lineSpan = Math.max(0.8, nextLineStart - lineStart);
+    const linePct = Math.min(100, Math.max(0, ((t + 0.12 - lineStart) / lineSpan) * 100));
+    const pctStr = `${linePct.toFixed(1)}%`;
+
+    if (lyricsLineProgress) {
+        lyricsLineProgress.style.width = pctStr;
+    }
+
+    const lineChanged = activeIdx !== currentActiveLyricIdx;
+    const prevIdx = currentActiveLyricIdx;
+    if (!forceRender && !lineChanged) {
+        // Update Karaoke Left-to-Right Wipe & Progress Bar smoothly at 100ms ticker rate
+        if (lyricsReelTrack && lyricsVisible) {
+            const activeReelText = lyricsReelTrack.querySelector(`[data-reel-idx="${activeIdx}"] .reel-lyric-text`);
+            if (activeReelText) {
+                activeReelText.style.setProperty('--fill-pct', pctStr);
+            }
+        }
+        if (inlineLyricsList && lyricsVisible) {
+            const activeInlineEl = inlineLyricsList.querySelector(`[data-lyric-idx="${activeIdx}"]`);
+            if (activeInlineEl) {
+                const progBar = activeInlineEl.querySelector('.lyric-inline-progress');
+                const textEl = activeInlineEl.querySelector('.inline-lyric-text');
+                if (progBar) progBar.style.width = pctStr;
+                if (textEl) textEl.style.setProperty('--fill-pct', pctStr);
+            }
+        }
+        return;
+    }
+    currentActiveLyricIdx = activeIdx;
+
+    const prevLine = activeIdx > 0 ? lines[activeIdx - 1].text : '♪ • • • ♪';
+    const currLine = lines[activeIdx]?.text || '♪';
+    const nextLine = activeIdx + 1 < lines.length ? lines[activeIdx + 1].text : '♪ • • • ♪';
+
+    if (lyricsLinePrev) lyricsLinePrev.textContent = prevLine;
+    if (lyricsLineActive) lyricsLineActive.textContent = currLine;
+    if (lyricsLineNext) lyricsLineNext.textContent = nextLine;
+
+    // 1. Update Smooth Vertical Scrolling Reel on Video Overlay
+    if (lyricsReelTrack) {
+        const reelItems = lyricsReelTrack.querySelectorAll('.lyrics-reel-item');
+        reelItems.forEach((item, idx) => {
+            const dist = idx - activeIdx;
+            const textEl = item.querySelector('.reel-lyric-text');
+            item.classList.remove('reel-active', 'reel-prev', 'reel-next', 'reel-near', 'reel-far');
+            if (dist === 0) {
+                item.classList.add('reel-active');
+                if (textEl) {
+                    textEl.className = 'reel-lyric-text karaoke-wipe-text text-sm sm:text-lg md:text-xl font-bold leading-snug block px-2';
+                    textEl.style.setProperty('--fill-pct', pctStr);
+                }
+            } else {
+                if (textEl) {
+                    textEl.className = 'reel-lyric-text text-xs sm:text-sm md:text-base font-medium text-brand-light/75 leading-snug block truncate px-2';
+                    textEl.style.removeProperty('--fill-pct');
+                }
+                if (dist === -1) item.classList.add('reel-prev');
+                else if (dist === 1) item.classList.add('reel-next');
+                else if (Math.abs(dist) === 2) item.classList.add('reel-near');
+                else item.classList.add('reel-far');
+            }
+        });
+        smoothScrollOverlayReelToActive(activeIdx);
+    }
+
+    // 2. Update Inline Lyrics List in Control Sidebar
+    if (inlineLyricsList) {
+        const items = inlineLyricsList.querySelectorAll('.lyric-inline-item');
+        let activeElement = null;
+        items.forEach((el, idx) => {
+            const progBar = el.querySelector('.lyric-inline-progress');
+            const textEl = el.querySelector('.inline-lyric-text');
+            el.classList.remove('lyric-past', 'lyric-active', 'lyric-next', 'lyric-upcoming');
+            if (idx < activeIdx) {
+                el.classList.add('lyric-past');
+                if (progBar) progBar.style.width = '0%';
+                if (textEl) {
+                    textEl.classList.remove('karaoke-wipe-text');
+                    textEl.style.removeProperty('--fill-pct');
+                }
+            } else if (idx === activeIdx) {
+                el.classList.add('lyric-active');
+                if (progBar) progBar.style.width = pctStr;
+                if (textEl) {
+                    textEl.classList.add('karaoke-wipe-text');
+                    textEl.style.setProperty('--fill-pct', pctStr);
+                }
+                activeElement = el;
+            } else if (idx === activeIdx + 1) {
+                el.classList.add('lyric-next');
+                if (progBar) progBar.style.width = '0%';
+                if (textEl) {
+                    textEl.classList.remove('karaoke-wipe-text');
+                    textEl.style.removeProperty('--fill-pct');
+                }
+            } else {
+                el.classList.add('lyric-upcoming');
+                if (progBar) progBar.style.width = '0%';
+                if (textEl) {
+                    textEl.classList.remove('karaoke-wipe-text');
+                    textEl.style.removeProperty('--fill-pct');
+                }
+            }
+        });
+
+        if (activeElement && lyricsVisible) {
+            smoothScrollInlineLyricsToCenter(activeElement, forceRender && prevIdx === -1);
+        }
+    }
+}
+
+// High-frequency lyric sync ticker (100ms) for smooth karaoke text-wipe progress & exact beat transitions
+setInterval(() => {
+    if (!state.currentVideo || !state.isPlaying || !currentLyricsData || !currentLyricsData.found) return;
+    const preciseTime = getPrecisePlaybackTime();
+    updateActiveLyricLine(preciseTime, false, true);
+}, 100);
+
+if (btnToggleLyrics) {
+    btnToggleLyrics.addEventListener('click', () => toggleLyricsDisplay());
+}
+if (playerLyricsBtn) {
+    playerLyricsBtn.addEventListener('click', () => toggleVideoOverlayLyrics());
+}
+if (lyricsOverlayClose) {
+    lyricsOverlayClose.addEventListener('click', () => toggleVideoOverlayLyrics(false));
+}
+if (btnKaraokeSwitch) {
+    btnKaraokeSwitch.addEventListener('click', () => {
+        if (!state.currentVideo) {
+            return showToast('กรุณาเปิดเพลงก่อนสลับโหมดคาราโอเกะ', 'error');
+        }
+        if (karaokeSwitchPending) return;
+        karaokeSwitchPending = true;
+        if (btnKaraokeLabel) {
+            btnKaraokeLabel.textContent = state.currentVideo.isKaraokeMode ? 'กำลังสลับกลับ...' : 'กำลังหาคาราโอเกะ...';
+        }
+        // Automatically open synced lyrics when entering karaoke mode
+        if (!state.currentVideo.isKaraokeMode && !lyricsVisible) {
+            toggleLyricsDisplay(true);
+        }
+        socket.emit('toggle-karaoke-mode');
+        setTimeout(() => {
+            if (karaokeSwitchPending) updateKaraokeButtonUI();
+        }, 6000);
+    });
+}
+
+// ============================================================================
+// FEATURE 2: DJ PARTY SOUNDBOARD (Web Audio Synthesizer + Room-Wide Sync)
+// ============================================================================
+const soundboardFxBadge = $('soundboard-fx-badge');
+const soundboardFxEmoji = $('soundboard-fx-emoji');
+const soundboardFxTitle = $('soundboard-fx-title');
+const soundboardFxUser = $('soundboard-fx-user');
+let soundboardBadgeTimer = null;
+
+const SOUNDBOARD_META = {
+    airhorn: { emoji: '📢', title: 'แตรลมปาร์ตี้! (Airhorn)' },
+    badumtss: { emoji: '🥁', title: 'ตบมุกผ่าง! (Ba-Dum-Tss)' },
+    cheer: { emoji: '👏', title: 'เสียงปรบมือเฮลั่น!' },
+    siren: { emoji: '🚨', title: 'ไซเรนสายตี้! (Party Siren)' },
+    laser: { emoji: '⚡', title: 'เลเซอร์บีม! (Laser Zap)' },
+    cricket: { emoji: '🦗', title: 'จิ้งหรีดร้อง... กริบเลย' }
+};
+
+function playDjSoundboardSynthesizer(soundId) {
+    try {
+        unlockAudioSystem();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!softAudioCtx) softAudioCtx = new AudioCtx();
+        if (softAudioCtx.state === 'suspended') {
+            softAudioCtx.resume().catch(() => {});
+        }
+
+        const ctx = softAudioCtx;
+        const now = ctx.currentTime;
+
+        // Briefly duck media volume on Host so the party effect cuts through clearly
+        duckHostMediaVolume(1800);
+
+        if (soundId === 'airhorn') {
+            // Classic DJ Reggae/Trap Airhorn: 3 blasts (short, short, long) with detuned sawtooth oscillators
+            const bursts = [
+                { start: 0, dur: 0.14 },
+                { start: 0.18, dur: 0.14 },
+                { start: 0.36, dur: 0.68 }
+            ];
+            const freqs = [392, 493.88, 587.33, 783.99];
+            bursts.forEach((b) => {
+                freqs.forEach((f, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f * (1 + (idx - 1.5) * 0.008), now + b.start);
+                    osc.frequency.linearRampToValueAtTime(f * 1.03, now + b.start + 0.03);
+                    gain.gain.setValueAtTime(0.001, now + b.start);
+                    gain.gain.linearRampToValueAtTime(0.09, now + b.start + 0.015);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + b.start + b.dur);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + b.start);
+                    osc.stop(now + b.start + b.dur + 0.02);
+                });
+            });
+        } else if (soundId === 'badumtss') {
+            // 1. "Ba" (High Tom) -> 2. "Dum" (Low Kick/Tom) -> 3. "Tss!" (Metallic Cymbal Noise)
+            const playDrumTone = (startOffset, startFreq, endFreq, dur, peakGain) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(startFreq, now + startOffset);
+                osc.frequency.exponentialRampToValueAtTime(endFreq, now + startOffset + dur);
+                gain.gain.setValueAtTime(peakGain, now + startOffset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + startOffset + dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + startOffset);
+                osc.stop(now + startOffset + dur + 0.02);
+            };
+            playDrumTone(0, 195, 75, 0.16, 0.32);
+            playDrumTone(0.19, 145, 52, 0.22, 0.36);
+
+            // Cymbal "Tssss" at +0.42s
+            const bufferSize = Math.floor(ctx.sampleRate * 0.75);
+            const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+            const whiteNoise = ctx.createBufferSource();
+            whiteNoise.buffer = noiseBuffer;
+            const highpass = ctx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.setValueAtTime(5500, now + 0.42);
+            const nGain = ctx.createGain();
+            nGain.gain.setValueAtTime(0.24, now + 0.42);
+            nGain.gain.exponentialRampToValueAtTime(0.001, now + 1.15);
+            whiteNoise.connect(highpass);
+            highpass.connect(nGain);
+            nGain.connect(ctx.destination);
+            whiteNoise.start(now + 0.42);
+            whiteNoise.stop(now + 1.16);
+        } else if (soundId === 'cheer') {
+            // Celebratory Fanfare Chord + Crowd Applause Swell
+            const chord = [523.25, 659.25, 783.99, 1046.5];
+            chord.forEach((freq, idx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                const st = now + idx * 0.055;
+                osc.frequency.setValueAtTime(freq, st);
+                gain.gain.setValueAtTime(0.001, st);
+                gain.gain.linearRampToValueAtTime(0.12, st + 0.03);
+                gain.gain.exponentialRampToValueAtTime(0.001, st + 0.75);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(st);
+                osc.stop(st + 0.78);
+            });
+            // Filtered applause texture
+            const bufLen = Math.floor(ctx.sampleRate * 1.1);
+            const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+            const ch = buf.getChannelData(0);
+            for (let i = 0; i < bufLen; i++) {
+                ch[i] = (Math.random() * 2 - 1) * Math.sin((i / bufLen) * Math.PI);
+            }
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.setValueAtTime(1600, now);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.16, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+            src.connect(bp);
+            bp.connect(g);
+            g.connect(ctx.destination);
+            src.start(now);
+            src.stop(now + 1.12);
+        } else if (soundId === 'siren') {
+            // Sweeping Party Siren (Wee-Ooo-Wee-Ooo)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.linearRampToValueAtTime(980, now + 0.28);
+            osc.frequency.linearRampToValueAtTime(520, now + 0.56);
+            osc.frequency.linearRampToValueAtTime(1020, now + 0.84);
+            osc.frequency.linearRampToValueAtTime(500, now + 1.12);
+            gain.gain.setValueAtTime(0.16, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 1.16);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 1.18);
+        } else if (soundId === 'laser') {
+            // 3 rapid Sci-Fi Laser Zaps (Pew-Pew-Pew!)
+            [0, 0.16, 0.32].forEach((offset) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(1550, now + offset);
+                osc.frequency.exponentialRampToValueAtTime(110, now + offset + 0.14);
+                gain.gain.setValueAtTime(0.18, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.14);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + 0.15);
+            });
+        } else if (soundId === 'cricket') {
+            // Awkward Cricket Chirps (2 double-chirp clusters at 4.3kHz)
+            const pulses = [0, 0.045, 0.09, 0.48, 0.525, 0.57];
+            pulses.forEach((p) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(4350, now + p);
+                osc.frequency.linearRampToValueAtTime(4550, now + p + 0.032);
+                gain.gain.setValueAtTime(0.001, now + p);
+                gain.gain.linearRampToValueAtTime(0.16, now + p + 0.008);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + p + 0.035);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + p);
+                osc.stop(now + p + 0.038);
+            });
+        }
+    } catch (err) {
+        console.warn('Soundboard synth error:', err.message);
+    }
+}
+
+function showSoundboardVisualBadge(soundId, senderName) {
+    const meta = SOUNDBOARD_META[soundId] || SOUNDBOARD_META.airhorn;
+
+    // Floating emoji on video player
+    if (playerArea) {
+        const el = document.createElement('div');
+        el.className = 'float-emoji';
+        el.textContent = meta.emoji;
+        el.style.left = (Math.random() * 70 + 15) + '%';
+        el.style.bottom = '14%';
+        playerArea.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+    }
+
+    if (soundboardFxBadge) {
+        if (soundboardFxEmoji) soundboardFxEmoji.textContent = meta.emoji;
+        if (soundboardFxTitle) soundboardFxTitle.textContent = meta.title;
+        if (soundboardFxUser) soundboardFxUser.textContent = `กดโดย ${senderName || 'DJ ในห้อง'}`;
+        soundboardFxBadge.classList.remove('hidden');
+        clearTimeout(soundboardBadgeTimer);
+        soundboardBadgeTimer = setTimeout(() => {
+            soundboardFxBadge.classList.add('hidden');
+        }, 2800);
+    }
+}
+
+document.querySelectorAll('[data-soundboard]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        const soundId = btn.getAttribute('data-soundboard');
+        if (!soundId) return;
+        unlockAudioSystem();
+        socket.emit('send-soundboard', {
+            soundId,
+            nickname: myProfile.name || 'สมาชิก'
+        });
+    });
+});
+
+socket.on('play-soundboard-fx', (payload) => {
+    if (!payload || !payload.soundId) return;
+    playDjSoundboardSynthesizer(payload.soundId);
+    showSoundboardVisualBadge(payload.soundId, payload.senderName);
+});
+
+// ============================================================================
+// FEATURE 3: ROUTE WEATHER AHEAD (3-Point Forecast Along Entire Route)
+// ============================================================================
+const routeWeatherAheadCard = $('route-weather-ahead-card');
+const routeWeatherSummaryBadge = $('route-weather-summary-badge');
+const routeWeatherPointsGrid = $('route-weather-points-grid');
+let currentRouteWeatherAhead = null;
+
+async function fetchQuickPointWeather(lat, lon) {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&hourly=precipitation_probability&timezone=auto&forecast_days=1`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const cur = data.current || {};
+    let rainProb = 0;
+    if (Array.isArray(data.hourly?.precipitation_probability)) {
+        let idx = new Date().getHours();
+        if (typeof cur.time === 'string' && Array.isArray(data.hourly?.time)) {
+            const hourPrefix = cur.time.slice(0, 13);
+            const found = data.hourly.time.findIndex(t => typeof t === 'string' && t.startsWith(hourPrefix));
+            if (found !== -1) idx = found;
+        }
+        const probs = data.hourly.precipitation_probability.slice(idx, idx + 3).filter(v => typeof v === 'number');
+        if (probs.length > 0) rainProb = Math.max(...probs);
+    }
+    const code = cur.weather_code ?? 0;
+    const decoded = decodeWmoWeather(code);
+    const isRainy = decoded.rain || rainProb >= 55;
+    const icon = code >= 95 ? '⛈️' : (decoded.rain ? '🌧️' : (rainProb >= 45 ? '🌦️' : (code >= 2 ? '⛅' : '☀️')));
+    return {
+        temp: Math.round(cur.temperature_2m ?? 30),
+        rainProb,
+        code,
+        text: decoded.text,
+        icon,
+        isRainy
+    };
+}
+
+function renderRouteWeatherAheadUI(routeWeather) {
+    if (!routeWeather || !Array.isArray(routeWeather.points) || !routeWeatherAheadCard || !routeWeatherPointsGrid) return;
+    currentRouteWeatherAhead = routeWeather;
+    routeWeatherAheadCard.classList.remove('hidden');
+
+    if (routeWeatherSummaryBadge) {
+        if (routeWeather.hasRainAhead) {
+            routeWeatherSummaryBadge.textContent = routeWeather.summary || '⚠️ มีโอกาสเจอฝนระหว่างทาง';
+            routeWeatherSummaryBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40 font-semibold animate-pulse';
+        } else {
+            routeWeatherSummaryBadge.textContent = routeWeather.summary || '✅ ตลอดสายอากาศปลอดโปร่ง';
+            routeWeatherSummaryBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-300 border border-emerald-500/30 font-medium';
+        }
+    }
+
+    routeWeatherPointsGrid.innerHTML = routeWeather.points.map((pt) => {
+        const borderCls = pt.isRainy
+            ? 'border-amber-400/50 bg-amber-950/30'
+            : 'border-brand-deep/50 bg-black/40';
+        const probCls = pt.rainProb >= 55 ? 'text-amber-300 font-bold' : 'text-sky-300';
+        return `
+            <div class="rounded-lg border ${borderCls} px-2 py-1.5 flex flex-col justify-between">
+                <div class="flex items-center justify-between gap-1">
+                    <span class="text-[9px] text-brand-light/70 font-medium truncate">${escapeHtml(pt.label)}</span>
+                    <span class="text-xs">${pt.icon || '⛅'}</span>
+                </div>
+                <div class="flex items-baseline justify-between mt-0.5">
+                    <span class="text-xs font-bold text-white">${pt.temp}°C</span>
+                    <span class="text-[9px] ${probCls}">ฝน ${pt.rainProb}%</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function analyzeRouteWeatherAhead(routeGeometry, startLat, startLon, destLat, destLon, destName) {
+    try {
+        const coords = Array.isArray(routeGeometry?.coordinates) ? routeGeometry.coordinates : [];
+        let midLat = (startLat + destLat) / 2;
+        let midLon = (startLon + destLon) / 2;
+        if (coords.length >= 3) {
+            const midCoord = coords[Math.floor(coords.length / 2)];
+            if (Array.isArray(midCoord) && midCoord.length >= 2) {
+                midLon = midCoord[0];
+                midLat = midCoord[1];
+            }
+        }
+
+        const [wStart, wMid, wDest] = await Promise.all([
+            fetchQuickPointWeather(startLat, startLon),
+            fetchQuickPointWeather(midLat, midLon),
+            fetchQuickPointWeather(destLat, destLon)
+        ]);
+
+        const points = [
+            { label: '📍 ต้นทาง', pct: 0, ...wStart },
+            { label: '🛣️ กลางทาง', pct: 50, ...wMid },
+            { label: '🏁 ปลายทาง', pct: 100, ...wDest }
+        ];
+
+        const rainyPoints = points.filter(p => p.isRainy);
+        const hasRainAhead = rainyPoints.length > 0;
+        const maxRainProb = Math.max(...points.map(p => p.rainProb || 0));
+        const summary = hasRainAhead
+            ? `⚠️ โอกาสฝนสูงสุด ${maxRainProb}% (${rainyPoints.map(p => p.label.replace(/^[^\s]+\s/, '')).join('/')})`
+            : `✅ อากาศดีตลอดสาย (โอกาสฝนสูงสุด ${maxRainProb}%)`;
+
+        const payload = {
+            points,
+            hasRainAhead,
+            maxRainProb,
+            summary
+        };
+
+        renderRouteWeatherAheadUI(payload);
+        emitNavStatePatch({ routeWeatherAhead: payload });
+
+        if (hasRainAhead) {
+            const rainyLabels = rainyPoints.map(p => p.label.replace(/^[^\s]+\s/, '')).join(' และ');
+            const voiceText = `พยากรณ์อากาศล่วงหน้าตามเส้นทางไป ${destName || 'จุดหมาย'} พบโอกาสเกิดฝนบริเวณ ${rainyLabels} สูงสุด ${maxRainProb} เปอร์เซ็นต์ โปรดขับขี่ด้วยความระมัดระวัง`;
+            showToast(`🌧️ พยากรณ์ตลอดเส้นทาง: ${summary}`, 'info');
+            socket.emit('trigger-nav-alert', {
+                type: 'route-weather-warning',
+                summary,
+                routeWeatherAhead: payload,
+                voiceText
+            });
+        }
+    } catch (err) {
+        console.warn('Route weather ahead analysis failed:', err.message);
+    }
+}
+
 
