@@ -6,10 +6,19 @@ const os = require('os');
 const https = require('https');
 const { execFile } = require('child_process');
 const { Innertube, Log } = require('youtubei.js');
+const QRCode = require('qrcode');
 
 if (Log && typeof Log.setLevel === 'function' && Log.Level) {
   Log.setLevel(Log.Level.NONE);
 }
+
+// Global process error handlers to prevent crashes during live playback
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[CRITICAL] Unhandled promise rejection:', reason);
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -548,6 +557,17 @@ async function reverseGeocodeCoord(lat, lon) {
   return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 }
 
+// Get LAN QR Code & join URL for in-car passenger mobile onboarding
+app.get('/api/qr', async (req, res) => {
+  try {
+    const qrDataUrl = await getJoinQrDataUrl();
+    const joinUrl = `http://${getLocalIp()}:${PORT}`;
+    res.json({ qrDataUrl, joinUrl, ip: getLocalIp(), port: PORT });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate QR code' });
+  }
+});
+
 // Resolve Google Maps URL (short or full), coordinates, or place name into destination coordinates
 app.post('/api/resolve-route', async (req, res) => {
   const rawInput = (req.body?.input || '').trim();
@@ -686,6 +706,7 @@ async function getInnertube() {
 // Collaborative Player State
 let state = {
   queue: [],
+  history: [],
   currentVideo: null,
   isPlaying: false,
   currentTime: 0,
@@ -702,7 +723,7 @@ let isSelectingAutoDj = false;
 let lastPlayedVideoInfo = null;
 const recentPlayedIds = [];
 
-function recordPlayedVideo(videoObj) {
+function recordPlayedVideo(videoObj, addToHistory = true) {
   if (!videoObj || !videoObj.videoId) return;
   lastPlayedVideoInfo = {
     videoId: videoObj.videoId,
@@ -713,6 +734,31 @@ function recordPlayedVideo(videoObj) {
   if (idx !== -1) recentPlayedIds.splice(idx, 1);
   recentPlayedIds.push(videoObj.videoId);
   if (recentPlayedIds.length > 60) recentPlayedIds.shift();
+
+  if (!addToHistory) return;
+
+  if (!Array.isArray(state.history)) state.history = [];
+  const historyItem = {
+    id: videoObj.id || (Date.now().toString() + Math.random().toString(36).substring(2, 7)),
+    videoId: String(videoObj.videoId),
+    title: String(videoObj.originalTitle || videoObj.title || 'Unknown Title'),
+    author: String(videoObj.author || 'YouTube'),
+    thumbnail: videoObj.thumbnail || `https://i.ytimg.com/vi/${videoObj.videoId}/hqdefault.jpg`,
+    url: videoObj.url || `https://www.youtube.com/watch?v=${videoObj.videoId}`,
+    source: videoObj.source || 'youtube',
+    playedAt: Date.now(),
+    addedBy: String(videoObj.addedBy || 'DJ')
+  };
+
+  if (state.history.length > 0 && state.history[0].videoId === historyItem.videoId) {
+    state.history[0].playedAt = historyItem.playedAt;
+    return;
+  }
+
+  state.history.unshift(historyItem);
+  if (state.history.length > 50) {
+    state.history.length = 50;
+  }
 }
 
 const AUTO_DJ_MODES = {
@@ -887,6 +933,43 @@ let isSwitchingKaraoke = false;
 let connectedUsers = {}; // { socketId: { name, color } }
 const clientRateLimits = new Map(); // socket.id -> { lastDanmaku: timestamp, lastReaction: timestamp, lastSoundboard: timestamp }
 
+// In-Car Democracy: Vote-to-Skip state tracking
+const voteSkipUsers = new Set();
+let cachedQrDataUrl = null;
+let lastQrIp = null;
+
+async function getJoinQrDataUrl() {
+  const ip = getLocalIp();
+  if (cachedQrDataUrl && lastQrIp === ip) return cachedQrDataUrl;
+  try {
+    const url = `http://${ip}:${PORT}`;
+    cachedQrDataUrl = await QRCode.toDataURL(url, {
+      margin: 1,
+      width: 160,
+      color: { dark: '#000000', light: '#ffffff' }
+    });
+    lastQrIp = ip;
+    return cachedQrDataUrl;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getVoteSkipState() {
+  const userCount = Math.max(1, Object.keys(connectedUsers).length);
+  const required = Math.floor(userCount / 2) + 1;
+  return {
+    current: voteSkipUsers.size,
+    required: required,
+    voters: Array.from(voteSkipUsers),
+    active: !!state.currentVideo
+  };
+}
+
+function broadcastVoteSkip() {
+  io.emit('vote-skip-update', getVoteSkipState());
+}
+
 // Helper: Get local network IP address (prioritizing physical Wi-Fi/Ethernet)
 function getLocalIp() {
   const interfaces = os.networkInterfaces();
@@ -1051,32 +1134,50 @@ async function findYoutubeMatchForTrack(title, artist) {
   };
 }
 
-// Helper: Fetch YouTube title using noembed API with 4s timeout fallback
+// Helper: Fetch YouTube title using noembed API with cache and 1800ms timeout fallback
+const youtubeMetadataCache = new Map([
+  ['dQw4w9WgXcQ', { title: 'Rick Astley - Never Gonna Give You Up (Official Music Video)', author: 'Rick Astley' }],
+  ['kJQP7kiw5Fk', { title: 'Luis Fonsi - Despacito ft. Daddy Yankee', author: 'Luis Fonsi' }],
+  ['oHg5SJYRHA0', { title: 'RickRoll', author: 'Cotter548' }],
+  ['9bZkp7q19f0', { title: 'PSY - GANGNAM STYLE(강남스타일) M/V', author: 'officialpsy' }]
+]);
+
 function getYoutubeMetadata(videoId) {
+  if (youtubeMetadataCache.has(videoId)) {
+    return Promise.resolve(youtubeMetadataCache.get(videoId));
+  }
   return new Promise((resolve) => {
+    let resolved = false;
+    const finish = (meta) => {
+      if (resolved) return;
+      resolved = true;
+      youtubeMetadataCache.set(videoId, meta);
+      resolve(meta);
+    };
+
     const req = https.get(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          resolve({
+          finish({
             title: json.title || `YouTube Video (${videoId})`,
             author: json.author_name || 'YouTube'
           });
         } catch (e) {
-          resolve({ title: `YouTube Video (${videoId})`, author: 'YouTube' });
+          finish({ title: `YouTube Video (${videoId})`, author: 'YouTube' });
         }
       });
     });
 
-    req.setTimeout(4000, () => {
+    req.setTimeout(1800, () => {
       req.destroy();
-      resolve({ title: `YouTube Video (${videoId})`, author: 'YouTube' });
+      finish({ title: `YouTube Video (${videoId})`, author: 'YouTube' });
     });
 
     req.on('error', () => {
-      resolve({ title: `YouTube Video (${videoId})`, author: 'YouTube' });
+      finish({ title: `YouTube Video (${videoId})`, author: 'YouTube' });
     });
   });
 }
@@ -1173,13 +1274,13 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
       state.isPlaying = true;
       state.currentTime = 0;
       state.duration = 0;
-      recordPlayedVideo(autoTrack);
+      recordPlayedVideo(autoTrack, false);
       prefetchVideoStreamUrl(autoTrack.videoId);
       broadcastState();
       io.emit('show-toast-broadcast', `🎧 ${badgeLabel} เลือกเพลง: ${trackTitle}`);
     } else if (forcePlay) {
       state.queue.unshift(autoTrack);
-      recordPlayedVideo(autoTrack);
+      recordPlayedVideo(autoTrack, false);
       broadcastState();
       io.emit('show-toast-broadcast', `🎧 เพิ่มเพลง ${badgeLabel} เป็นคิวถัดไป: ${trackTitle}`);
     }
@@ -1191,15 +1292,17 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
 }
 
 function playNext() {
+  voteSkipUsers.clear();
+  broadcastVoteSkip();
   if (state.currentVideo) {
-    recordPlayedVideo(state.currentVideo);
+    recordPlayedVideo(state.currentVideo, true);
   }
   if (state.queue.length > 0) {
     state.currentVideo = state.queue.shift();
     state.isPlaying = true;
     state.currentTime = 0;
     state.duration = 0;
-    recordPlayedVideo(state.currentVideo);
+    recordPlayedVideo(state.currentVideo, false);
     prefetchVideoStreamUrl(state.currentVideo.videoId);
     if (state.queue[0] && state.queue[0].videoId) {
       prefetchVideoStreamUrl(state.queue[0].videoId);
@@ -1215,29 +1318,51 @@ function playNext() {
       triggerAutoDjNextTrack(false);
     }
   }
+  broadcastVoteSkip();
 }
 
 function broadcastState() {
   io.emit('state-update', state);
 }
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   console.log(`A user connected: ${socket.id}`);
+  connectedUsers[socket.id] = { name: 'สมาชิกรถ', color: '#ABD2FA', avatar: null };
+  broadcastVoteSkip();
+
+  const qrDataUrl = await getJoinQrDataUrl();
+  const joinUrl = `http://${getLocalIp()}:${PORT}`;
 
   socket.emit('init', {
     state: state,
     navState: navState,
     localIp: getLocalIp(),
     port: PORT,
-    users: connectedUsers
+    joinUrl: joinUrl,
+    qrDataUrl: qrDataUrl,
+    users: connectedUsers,
+    voteSkipState: getVoteSkipState()
   });
 
   socket.on('set-profile', (data) => {
     if (!data || typeof data !== 'object') return;
     const name = typeof data.name === 'string' ? data.name.trim().substring(0, 25) : 'ผู้ใช้ทั่วไป';
     const color = typeof data.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(data.color) ? data.color : '#ABD2FA';
-    connectedUsers[socket.id] = { name: name || 'ผู้ใช้ทั่วไป', color };
+    const avatar = typeof data.avatar === 'string' && (data.avatar.startsWith('data:image/') || data.avatar.startsWith('/') || data.avatar.startsWith('http')) && data.avatar.length <= 150000 
+      ? data.avatar 
+      : (data.avatar === '' ? null : (connectedUsers[socket.id]?.avatar || null));
+    connectedUsers[socket.id] = { name: name || 'ผู้ใช้ทั่วไป', color, avatar };
     io.emit('users-update', connectedUsers);
+  });
+
+  socket.on('request-state', () => {
+    try {
+      socket.emit('state-update', state);
+      socket.emit('vote-skip-update', getVoteSkipState());
+      socket.emit('users-update', connectedUsers);
+    } catch (err) {
+      console.error('[request-state] Defensive handler caught error:', err.message);
+    }
   });
 
   socket.on('add-to-queue', async (data) => {
@@ -1247,6 +1372,9 @@ io.on('connection', (socket) => {
 
     const nickname = typeof data.nickname === 'string' ? data.nickname.trim().substring(0, 25) : 'ผู้ใช้ทั่วไป';
     const color = typeof data.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(data.color) ? data.color : '#ABD2FA';
+    const avatar = typeof data.avatar === 'string' && (data.avatar.startsWith('data:image/') || data.avatar.startsWith('/') || data.avatar.startsWith('http')) && data.avatar.length <= 150000 
+      ? data.avatar 
+      : (connectedUsers[socket.id]?.avatar || null);
 
     // 1. Check if it's a Spotify URL/URI
     const spotifyRef = await parseSpotifyUrl(data.url);
@@ -1283,7 +1411,10 @@ io.on('connection', (socket) => {
               source: 'spotify',
               addedBy: nickname || 'ผู้ใช้ทั่วไป',
               color: color,
-              addedBySocketId: socket.id
+              avatar: avatar || null,
+              addedBySocketId: socket.id,
+              votes: 0,
+              voters: []
             });
             addedCount++;
             if (state.queue.length <= 2) {
@@ -1315,15 +1446,36 @@ io.on('connection', (socket) => {
       }
     }
 
-    // 2. Otherwise parse as YouTube URL
-    const videoId = getYoutubeId(data.url);
+    // 2. Otherwise parse as YouTube URL or search query
+    let videoId = getYoutubeId(data.url);
+    let searchMeta = null;
+
     if (!videoId) {
-      return socket.emit('error-msg', 'ลิงก์ไม่ถูกต้อง (รองรับลิงก์ YouTube ปกติ, Shorts, Live และลิงก์ Spotify Track/Album/Playlist)');
+      const query = data.url.trim();
+      if (!query) {
+        return socket.emit('error-msg', 'กรุณาระบุลิงก์เพลง หรือพิมพ์ชื่อเพลงที่ต้องการค้นหา');
+      }
+
+      socket.emit('add-queue-status', { loading: true, message: `กำลังค้นหาเพลง "${query}"...` });
+      try {
+        const match = await findYoutubeMatchForTrack(query, '');
+        if (match && match.videoId) {
+          videoId = match.videoId;
+          searchMeta = { title: match.ytTitle, author: match.ytAuthor };
+        } else {
+          socket.emit('add-queue-status', { loading: false });
+          return socket.emit('error-msg', `ไม่พบเพลง "${query}" บน YouTube`);
+        }
+      } catch (searchErr) {
+        console.error('Song search error:', searchErr.message);
+        socket.emit('add-queue-status', { loading: false });
+        return socket.emit('error-msg', 'เกิดข้อผิดพลาดในการค้นหาเพลง');
+      }
     }
 
     socket.emit('add-queue-status', { loading: true });
     try {
-      const meta = await getYoutubeMetadata(videoId);
+      const meta = searchMeta || await getYoutubeMetadata(videoId);
 
       state.queue.push({
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
@@ -1335,6 +1487,7 @@ io.on('connection', (socket) => {
         source: 'youtube',
         addedBy: nickname || 'ผู้ใช้ทั่วไป',
         color: color,
+        avatar: avatar || null,
         addedBySocketId: socket.id
       });
       if (state.queue.length <= 2) {
@@ -1342,6 +1495,7 @@ io.on('connection', (socket) => {
       }
 
       socket.emit('add-queue-status', { loading: false });
+      socket.emit('show-toast-broadcast', `เพิ่มเพลงเข้าคิว: ${meta.title}`);
       if (!state.currentVideo) playNext();
       else broadcastState();
     } catch (err) {
@@ -1374,7 +1528,31 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('skip-video', () => playNext());
+  // Host instant skip
+  socket.on('skip-video', () => {
+    voteSkipUsers.clear();
+    playNext();
+  });
+
+  // Client democratic Vote-to-Skip
+  socket.on('vote-skip', () => {
+    if (!state.currentVideo) return;
+    if (voteSkipUsers.has(socket.id)) {
+      voteSkipUsers.delete(socket.id);
+    } else {
+      voteSkipUsers.add(socket.id);
+    }
+    const vs = getVoteSkipState();
+    if (vs.current >= vs.required) {
+      io.emit('show-toast-broadcast', `🗳️ ประชาธิปไตยในรถเห็นชอบ (${vs.current}/${vs.required})! กำลังเปลี่ยนเพลงถัดไป...`);
+      playNext();
+    } else {
+      const voterName = connectedUsers[socket.id]?.name || 'ผู้โดยสาร';
+      const actionText = voteSkipUsers.has(socket.id) ? 'โหวตข้ามเพลง' : 'ยกเลิกโหวต';
+      io.emit('show-toast-broadcast', `🗳️ ${voterName} ${actionText} (${vs.current}/${vs.required})`);
+      broadcastVoteSkip();
+    }
+  });
 
   socket.on('remove-from-queue', (itemId) => {
     if (typeof itemId !== 'string') return;
@@ -1385,6 +1563,107 @@ io.on('connection', (socket) => {
   socket.on('clear-queue', () => {
     state.queue = [];
     broadcastState();
+  });
+
+  socket.on('reorder-queue', (data) => {
+    try {
+      if (!data) return;
+
+      // Support payload flexibility: string[], { itemIds: string[] }, { queueIds: string[] }
+      let orderIds = null;
+      if (Array.isArray(data)) {
+        orderIds = data;
+      } else if (typeof data === 'object') {
+        if (Array.isArray(data.queueIds)) {
+          orderIds = data.queueIds;
+        } else if (Array.isArray(data.itemIds)) {
+          orderIds = data.itemIds;
+        }
+      }
+
+      if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) return;
+      if (!Array.isArray(state.queue) || state.queue.length === 0) return;
+
+      // DoS length protection
+      if (orderIds.length > 500) {
+        orderIds = orderIds.slice(0, 500);
+      }
+
+      // Build lookup Map from current queue
+      const queueMap = new Map(state.queue.map(item => [item.id, item]));
+      const newQueue = [];
+
+      // Reorder based on client request (with deduplication)
+      for (const id of orderIds) {
+        if (typeof id === 'string' && queueMap.has(id)) {
+          newQueue.push(queueMap.get(id));
+          queueMap.delete(id); // Delete ensures duplicates in payload are ignored
+        }
+      }
+
+      // CONCURRENCY SAFEGUARD: Preserve any items concurrently added by other clients
+      for (const remainingItem of queueMap.values()) {
+        newQueue.push(remainingItem);
+      }
+
+      // Redundant broadcast prevention
+      const isSameOrder = state.queue.length === newQueue.length &&
+        state.queue.every((item, i) => item.id === newQueue[i].id);
+      if (isSameOrder) return;
+
+      state.queue = newQueue;
+
+      // Prefetch stream for the new top track if changed
+      if (state.queue[0]?.videoId) {
+        prefetchVideoStreamUrl(state.queue[0].videoId);
+      }
+
+      broadcastState();
+    } catch (err) {
+      console.error('[reorder-queue] Defensive handler caught error:', err.message);
+    }
+  });
+
+  socket.on('move-track', (data) => {
+    try {
+      if (!data || typeof data !== 'object' || typeof data.itemId !== 'string' || !data.itemId) {
+        return;
+      }
+      if (!Array.isArray(state.queue) || state.queue.length <= 1) return;
+
+      const idx = state.queue.findIndex(item => item.id === data.itemId);
+      if (idx === -1) return; // Item does not exist (or was deleted concurrently)
+
+      let targetIdx = idx;
+      if (data.direction === 'up') {
+        targetIdx = idx - 1;
+      } else if (data.direction === 'down') {
+        targetIdx = idx + 1;
+      } else if (typeof data.toIndex === 'number' && Number.isInteger(data.toIndex)) {
+        targetIdx = data.toIndex;
+      } else {
+        return; // Invalid direction or non-integer target
+      }
+
+      // Boundary clamp: [0, state.queue.length - 1]
+      targetIdx = Math.max(0, Math.min(state.queue.length - 1, targetIdx));
+
+      // If item is already at boundary (e.g. index 0 moving up, last item moving down)
+      if (targetIdx === idx) return;
+
+      // Atomic move
+      const [item] = state.queue.splice(idx, 1);
+      state.queue.splice(targetIdx, 0, item);
+
+      // Prefetch stream if moved to top
+      if (state.queue[0]?.videoId) {
+        prefetchVideoStreamUrl(state.queue[0].videoId);
+      }
+
+      broadcastState();
+    } catch (err) {
+      console.error('[move-track] Defensive handler caught error:', err.message);
+    }
   });
 
   socket.on('player-progress', (data) => {
@@ -1562,9 +1841,6 @@ io.on('connection', (socket) => {
 
     const now = Date.now();
     const limits = clientRateLimits.get(socket.id) || { lastDanmaku: 0, lastReaction: 0, lastSoundboard: 0 };
-    if (now - (limits.lastSoundboard || 0) < 850) {
-      return socket.emit('error-msg', 'กดซาวด์เอฟเฟกต์รัวเกินไป รอสักครู่นะครับ 🎛️');
-    }
     limits.lastSoundboard = now;
     clientRateLimits.set(socket.id, limits);
 
@@ -1676,11 +1952,15 @@ io.on('connection', (socket) => {
     if (!text) return;
     const nickname = typeof data.nickname === 'string' ? data.nickname.trim().substring(0, 25) : 'ผู้ใช้ทั่วไป';
     const color = typeof data.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(data.color) ? data.color : '#ABD2FA';
+    const avatar = typeof data.avatar === 'string' && (data.avatar.startsWith('data:image/') || data.avatar.startsWith('/') || data.avatar.startsWith('http')) && data.avatar.length <= 150000 
+      ? data.avatar 
+      : (connectedUsers[socket.id]?.avatar || null);
 
     io.emit('new-danmaku', {
       text,
       nickname,
       color,
+      avatar,
       tts: Boolean(data.tts)
     });
   });
@@ -1712,7 +1992,19 @@ io.on('connection', (socket) => {
     console.log(`User disconnected: ${socket.id}`);
     delete connectedUsers[socket.id];
     clientRateLimits.delete(socket.id);
+    if (voteSkipUsers.has(socket.id)) {
+      voteSkipUsers.delete(socket.id);
+    }
     io.emit('users-update', connectedUsers);
+
+    // Dynamic vote skip quorum check upon passenger disconnect
+    const vs = getVoteSkipState();
+    if (state.currentVideo && vs.current >= vs.required) {
+      io.emit('show-toast-broadcast', `🗳️ ประชาธิปไตยในรถเห็นชอบ (${vs.current}/${vs.required}) หลังมีผู้โดยสารออกจากห้อง! กำลังเปลี่ยนเพลงถัดไป...`);
+      playNext();
+    } else {
+      broadcastVoteSkip();
+    }
   });
 });
 
