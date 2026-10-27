@@ -1419,35 +1419,21 @@
             if (window.__introCrossfadeCallback) {
                 try { window.__introCrossfadeCallback(); } catch(e) {}
             }
+            setTimeout(function() {
+                doDismiss(false);
+            }, 1500);
         }
 
         function doDismiss(isImmediate) {
             if (dismissed) return;
             dismissed = true;
-            if (isImmediate) {
-                try { vid.pause(); } catch(e) {}
-                if (overlay) {
-                    overlay.style.transition = 'opacity 0.25s ease-out';
-                    overlay.style.opacity = '0';
-                    overlay.style.pointerEvents = 'none';
-                }
-                setTimeout(function() {
-                    if (overlay) {
-                        overlay.style.setProperty('display', 'none', 'important');
-                        overlay.classList.add('hidden');
-                        overlay.classList.remove('flex');
-                    }
-                }, 250);
-            } else {
-                startFadeOut();
-                setTimeout(function() {
-                    try { vid.pause(); } catch(e) {}
-                    if (overlay) {
-                        overlay.style.setProperty('display', 'none', 'important');
-                        overlay.classList.add('hidden');
-                        overlay.classList.remove('flex');
-                    }
-                }, 1500);
+            try { vid.pause(); } catch(e) {}
+            if (overlay) {
+                overlay.style.setProperty('display', 'none', 'important');
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+                overlay.style.pointerEvents = 'none';
+                overlay.style.opacity = '0';
             }
             if (window.__introDismissCallback) {
                 try { window.__introDismissCallback(isImmediate); } catch(e) {}
@@ -1463,7 +1449,14 @@
                     e.stopPropagation();
                     e.preventDefault();
                 }
-                doDismiss(true);
+                if (overlay) {
+                    overlay.style.transition = 'opacity 0.25s ease-out';
+                    overlay.style.opacity = '0';
+                    overlay.style.pointerEvents = 'none';
+                }
+                setTimeout(function() {
+                    doDismiss(true);
+                }, 250);
             };
             skipBtn.onpointerdown = function(e) {
                 if (e) e.stopPropagation();
