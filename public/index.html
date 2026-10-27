@@ -1,43 +1,46 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="js">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MAITEMBATH GANG PARTY - Collaborative in-car party music and video console for road trips.">
     <title>MAITEMBATH GANG PARTY</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="192x192" href="/PNRJAPANLOGO.png">
     <link rel="apple-touch-icon" href="/PNRJAPANLOGO.png">
+    <link rel="stylesheet" href="tokens.css">
+    <link rel="stylesheet" href="base.css">
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: ['class', '[data-theme="dark"]'],
             theme: {
                 extend: {
                     fontFamily: {
-                        display: ['"General Sans"', 'Kanit', '-apple-system', 'sans-serif'],
-                        sans: ['"DM Sans"', 'Kanit', '-apple-system', 'sans-serif'],
+                        display: ['"Plus Jakarta Sans"', 'Kanit', '-apple-system', 'sans-serif'],
+                        sans: ['"Plus Jakarta Sans"', 'Kanit', '-apple-system', 'sans-serif'],
                         mono: ['"JetBrains Mono"', 'monospace']
                     },
                     colors: {
                         primary: {
-                            DEFAULT: '#6366F1',
-                            hover: '#4F46E5'
+                            DEFAULT: '#00E5FF',
+                            hover: '#0284c7'
                         },
-                        secondary: '#20970B',
-                        neutral: '#9C9C9C',
+                        secondary: '#10B981',
+                        neutral: '#94a3b8',
                         brand: {
-                            deep: '#1e1b4b',
-                            light: '#F4F4F6',
-                            peri: '#6366F1'
+                            deep: '#0c111c',
+                            light: '#f8fafc',
+                            peri: '#00E5FF'
                         },
                         cyan: {
-                            400: '#818cf8',
-                            500: '#6366F1',
-                            600: '#4f46e5'
+                            400: '#38bdf8',
+                            500: '#00E5FF',
+                            600: '#0284c7'
                         }
                     }
                 }
@@ -45,19 +48,24 @@
         }
     </script>
     <style>
-        /* Genesis Typography Spec */
-        * { font-family: 'DM Sans', 'Kanit', -apple-system, BlinkMacSystemFont, sans-serif; }
+        html, body {
+            overflow-x: clip;
+            background-color: var(--color-paper);
+            color: var(--color-ink);
+        }
+        * { font-family: var(--font-body); }
         h1, h2, h3, h4, .font-display {
-            font-family: 'General Sans', 'Kanit', -apple-system, BlinkMacSystemFont, sans-serif;
-            letter-spacing: -0.035em;
+            font-family: var(--font-display);
+            letter-spacing: -0.015em;
             font-weight: 700;
+            text-wrap: balance;
         }
         code, pre, .font-mono, [data-mono] {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
         }
         body { 
-            background: var(--genesis-bg, #FAFAFA); 
-            color: var(--genesis-text-primary, #0A0A0A); 
+            background: var(--color-paper); 
+            color: var(--color-ink); 
             font-size: 0.9375rem; 
             line-height: 1.4rem; 
         }
@@ -67,31 +75,31 @@
         h4 { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 600; }
         
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--genesis-bg, #FAFAFA); }
-        ::-webkit-scrollbar-thumb { background: var(--genesis-border, #E8E8EC); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--genesis-text-muted, #9C9C9C); }
+        ::-webkit-scrollbar-track { background: var(--color-paper); }
+        ::-webkit-scrollbar-thumb { background: var(--color-rule); border-radius: var(--radius-pill); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
         input[type="range"] { 
             -webkit-appearance: none; 
-            background: var(--genesis-surface-subtle, #F4F4F6); 
-            border: 1px solid var(--genesis-border, #E8E8EC);
+            background: var(--color-paper-2); 
+            border: 1px solid var(--color-rule);
             height: 6px; 
-            border-radius: 9999px; 
+            border-radius: var(--radius-pill); 
         }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none; 
             width: 16px; 
             height: 16px; 
-            border-radius: 50%;
-            background: var(--genesis-primary, #6366F1); 
+            border-radius: var(--radius-pill);
+            background: var(--color-accent); 
             cursor: pointer; 
-            border: 2px solid var(--genesis-surface, #FFFFFF);
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            border: 2px solid var(--color-paper);
+            box-shadow: var(--shadow-glow-sm);
+            transition: transform var(--dur-micro) var(--ease-out);
         }
         input[type="range"]::-webkit-slider-thumb:hover {
             transform: scale(1.15);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+            box-shadow: var(--shadow-glow);
         }
 
         /* Mobile In-Car Remote Mode */
@@ -119,7 +127,7 @@
             will-change: opacity, transform;
         }
 
-        body.user-idle .idle-autofade {
+        html.js body.user-idle .idle-autofade {
             opacity: 0 !important;
             pointer-events: none !important;
         }
@@ -147,36 +155,46 @@
            CYBER LUXE & GLASSMORPHISM SUITE
            ========================================================================== */
         ::selection {
-            background: #00E5FF;
-            color: #000000;
+            background: var(--color-accent);
+            color: var(--color-accent-ink);
         }
 
         /* Modern Streaming Dark Panel (OLED High Contrast + Crisp Border) */
         .glass-panel {
-            padding: 0.75rem;
-            background: rgba(12, 17, 28, 0.88) !important;
-            backdrop-filter: blur(16px) saturate(160%) !important;
-            -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
-            border: 1px solid rgba(56, 189, 248, 0.16) !important;
-            border-radius: 0.875rem;
-            box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.75), inset 0 1px 0 0 rgba(255, 255, 255, 0.05) !important;
+            padding: var(--space-sm);
+            background: var(--color-paper-2) !important;
+            border: 1px solid var(--color-rule) !important;
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card) !important;
         }
         .glass-panel:hover {
-            border-color: rgba(0, 229, 255, 0.32) !important;
+            border-color: var(--color-accent) !important;
         }
 
 
 
-        /* CINEMATIC 3D WARP INTRO SUITE */
+        /* CINEMATIC INTRO CROSSFADE SUITE */
         #intro-overlay {
-            background: #020408;
-            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), filter 0.8s ease;
+            background: var(--color-paper);
+            transition: opacity 1.7s cubic-bezier(0.25, 1, 0.5, 1);
+            will-change: opacity;
         }
         #intro-overlay.intro-exit {
             opacity: 0 !important;
-            transform: scale(1.18) !important;
-            filter: blur(14px) !important;
             pointer-events: none !important;
+            transition: opacity 1.7s cubic-bezier(0.25, 1, 0.5, 1) !important;
+        }
+        #intro-overlay.intro-fast-exit {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.35s ease-out !important;
+        }
+        #player-area.player-crossfade-in {
+            animation: playerCrossfadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes playerCrossfadeIn {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
         }
         @keyframes spinRing {
             from { transform: rotate(0deg); }
@@ -195,40 +213,42 @@
             60%, 100% { transform: translateX(250%) skewX(-20deg); }
         }
         @keyframes introLineGrow {
-            0% { width: 0%; }
-            100% { width: 100%; }
+            0% { transform: scaleX(0); }
+            100% { transform: scaleX(1); }
         }
         .intro-energy-ring-1 {
-            border: 1.5px dashed rgba(171, 210, 250, 0.45);
+            border: 1.5px dashed var(--color-rule);
             animation: spinRing 12s linear infinite;
         }
         .intro-energy-ring-2 {
-            border: 1px dotted rgba(56, 189, 248, 0.35);
+            border: 1px dotted var(--color-rule);
             animation: spinRingRev 9s linear infinite;
         }
         .intro-shockwave {
-            border: 2px solid rgba(171, 210, 250, 0.45);
+            border: 2px solid var(--color-rule);
             animation: shockwavePulse 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
         }
         .intro-light-sweep {
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+            background: linear-gradient(90deg, transparent, var(--color-ink-2), transparent);
             animation: sweepGleam 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) 1 forwards 0.4s;
             filter: blur(1.5px);
         }
         .intro-progress-bar {
+            transform-origin: left;
             animation: introLineGrow 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
 
         /* Danmaku */
         .danmaku-text {
             position: absolute; white-space: nowrap; font-weight: 600; font-size: 2.4rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7), 0 0 1px #000;
+            text-shadow: 2px 2px 4px var(--color-paper), 0 0 8px var(--color-paper);
             pointer-events: none; z-index: 40;
-            left: 100%; transform: translateX(0);
+            left: 0; transform: translateX(100vw);
             animation: danmaku-slide linear forwards;
         }
         @keyframes danmaku-slide {
-            to { left: 0; transform: translateX(-100%); }
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
         }
 
         /* Floating reaction */
@@ -242,7 +262,7 @@
             100% { opacity: 0; transform: translateY(-400px) scale(0.6); }
         }
 
-        .btn-glow:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); }
+        .btn-glow:hover { box-shadow: var(--shadow-card); }
 
         /* Smooth Fade & UI Animations */
         @keyframes fadeInUp {
@@ -250,7 +270,7 @@
             100% { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes fadeOutSlide {
-            0% { opacity: 1; transform: translateX(0) scale(1); max-height: 70px; margin-bottom: 6px; }
+            0% { opacity: 1; transform: translateX(0) scale(1); max-height: 70px; margin-bottom: 8px; }
             100% { opacity: 0; transform: translateX(24px) scale(0.95); max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
         }
         @keyframes thumbPopFade {
@@ -258,12 +278,16 @@
             100% { opacity: 1; transform: scale(1); filter: blur(0); }
         }
         @keyframes eqBar {
-            0%, 100% { height: 3px; }
-            50% { height: 12px; }
+            0%, 100% { transform: scaleY(0.25); }
+            50% { transform: scaleY(1); }
+        }
+        .eq-bar {
+            height: 12px;
+            transform-origin: bottom;
         }
         @keyframes softPulseGlow {
-            0%, 100% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
-            50% { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65); }
+            0%, 100% { box-shadow: var(--shadow-card); }
+            50% { box-shadow: var(--shadow-glow); }
         }
 
         .animate-fade-in-up {
@@ -286,7 +310,7 @@
         }
         .eq-bar {
             width: 2.5px;
-            background: #ABD2FA;
+            background: var(--color-accent);
             border-radius: 9999px;
             animation: eqBar 0.8s ease-in-out infinite;
         }
@@ -294,8 +318,7 @@
         .eq-bar:nth-child(3) { animation-delay: 0.4s; animation-duration: 0.9s; }
         .eq-paused .eq-bar {
             animation-play-state: paused;
-            height: 3px !important;
-            transition: height 0.25s ease;
+            transform: scaleY(0.25); transition: transform 0.25s ease;
         }
         .now-playing-card {
             animation: softPulseGlow 4s ease-in-out infinite;
@@ -308,7 +331,7 @@
             user-select: none !important;
         }
 
-        #player-area:fullscreen, #player-area:-webkit-full-screen { width: 100vw; height: 100vh; background: #000; }
+        #player-area:fullscreen, #player-area:-webkit-full-screen { width: 100%; height: 100vh; background: var(--color-paper); }
         #player-area:fullscreen #danmaku-layer, #player-area:-webkit-full-screen #danmaku-layer { z-index: 2147483647; }
         #player-area:fullscreen #lyrics-overlay, #player-area:-webkit-full-screen #lyrics-overlay { z-index: 2147483647; }
         #player-area:fullscreen .float-emoji, #player-area:-webkit-full-screen .float-emoji { z-index: 2147483646; }
@@ -324,22 +347,22 @@
         /* Weather Radar & GPS Navigation Panel: Smooth Cross-Fade + Blur + Slide + Scale In-Place Swap with Control Panel (aside) */
         @keyframes radarPanelGlow {
             0%, 100% {
-                box-shadow: -4px 0 24px rgba(0, 0, 0, 0.6);
-                border-left-color: rgba(56, 189, 248, 0.4);
+                box-shadow: var(--shadow-card);
+                border-left-color: var(--color-rule);
             }
             50% {
-                box-shadow: -6px 0 32px rgba(0, 0, 0, 0.8);
-                border-left-color: rgba(52, 211, 153, 0.6);
+                box-shadow: var(--shadow-glow);
+                border-left-color: var(--color-success);
             }
         }
         @keyframes countdownPop {
-            0% { transform: scale(1.32); color: #6ee7b7; }
-            100% { transform: scale(1); color: #34d399; }
+            0% { transform: scale(1.32); color: var(--color-success); }
+            100% { transform: scale(1); color: var(--color-success); }
         }
         @keyframes controlReturnGlow {
-            0% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); transform: scale(0.98); }
-            50% { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6); transform: scale(1.01); }
-            100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); transform: scale(1); }
+            0% { box-shadow: var(--shadow-card); transform: scale(0.98); }
+            50% { box-shadow: var(--shadow-card); transform: scale(1.01); }
+            100% { box-shadow: var(--shadow-card); transform: scale(1); }
         }
         .animate-countdown-pop {
             display: inline-block;
@@ -363,8 +386,8 @@
                 visibility 0s linear 0s;
             will-change: opacity, transform, filter;
         }
-        body.split-radar-active main > aside,
-        body.nav-radar-showcase main > aside {
+        html.js body.split-radar-active main > aside,
+        html.js body.nav-radar-showcase main > aside {
             opacity: 0 !important;
             visibility: hidden !important;
             pointer-events: none !important;
@@ -466,8 +489,8 @@
             }
         }
         .leaflet-container {
-            background: #070b12 !important;
-            font-family: 'Kanit', sans-serif !important;
+            background: var(--color-paper) !important;
+            font-family: var(--font-body) !important;
             width: 100% !important;
             height: 100% !important;
         }
@@ -478,18 +501,18 @@
         .gps-user-dot {
             width: 16px;
             height: 16px;
-            background: #38bdf8;
-            border: 2.5px solid #ffffff;
+            background: var(--color-accent);
+            border: 2.5px solid var(--color-ink);
             border-radius: 9999px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            box-shadow: var(--shadow-card);
         }
         .gps-dest-dot {
             width: 18px;
             height: 18px;
-            background: #ef4444;
-            border: 2.5px solid #ffffff;
+            background: var(--color-error);
+            border: 2.5px solid var(--color-ink);
             border-radius: 9999px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            box-shadow: var(--shadow-card);
         }
         /* Weather Alert Country-to-User Zoom Sonar Rings & Target Lock HUD */
         @keyframes radarSonarRing {
@@ -522,13 +545,13 @@
             width: 54px;
             height: 54px;
             border-radius: 9999px;
-            border: 2px solid #38bdf8;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--color-accent);
+            box-shadow: var(--shadow-glow-sm);
             animation: radarSonarRing 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
         }
         .weather-target-pin.storm-mode .sonar-ring {
-            border-color: #ef4444;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+            border-color: var(--color-error);
+            box-shadow: var(--shadow-glow-sm);
         }
         .weather-target-pin .sonar-ring.delay-1 {
             animation-delay: 0.7s;
@@ -542,20 +565,20 @@
             left: 50%;
             transform: translateX(-50%);
             white-space: nowrap;
-            padding: 3px 8px;
+            padding: var(--space-2xs) var(--space-xs);
             border-radius: 9999px;
             font-size: 10px;
             font-weight: 600;
-            color: #ffffff;
-            background: rgba(8, 20, 38, 0.92);
-            border: 1px solid rgba(56, 189, 248, 0.75);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+            color: var(--color-ink);
+            background: var(--color-paper-2);
+            border: 1px solid var(--color-rule);
+            box-shadow: var(--shadow-card);
             animation: targetBadgeFloat 2s ease-in-out infinite;
         }
         .weather-target-pin.storm-mode .weather-target-label {
-            background: rgba(40, 10, 14, 0.94);
-            border-color: rgba(239, 68, 68, 0.85);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+            background: var(--color-paper-3);
+            border-color: var(--color-error);
+            box-shadow: var(--shadow-card);
         }
 
         /* Smooth Synced Lyrics Scrolling & Karaoke Animations */
@@ -662,8 +685,7 @@
         #lyrics-overlay.lyrics-overlay-active:hover .lyrics-floating-toolbar {
             opacity: 1;
         }
-        #lyrics-restore-pill,
-        #player-lyrics-btn {
+        html.js #lyrics-restore-pill, html.js #player-lyrics-btn {
             z-index: 38;
             opacity: 0;
             visibility: hidden;
@@ -687,7 +709,7 @@
             filter: blur(0px);
             pointer-events: auto;
         }
-        #lyric-spotlight-banner {
+        html.js #lyric-spotlight-banner {
             z-index: 42;
             opacity: 0;
             visibility: hidden;
@@ -707,7 +729,7 @@
             transform: translate3d(0, 0, 0) scale(1);
             filter: blur(0px);
         }
-        #inline-lyrics-box {
+        html.js #inline-lyrics-box {
             max-height: 0;
             opacity: 0;
             padding-top: 0;
@@ -730,9 +752,9 @@
         #inline-lyrics-box.inline-lyrics-active {
             max-height: 26rem;
             opacity: 1;
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
-            margin-top: 0.75rem !important;
+            padding-top: var(--space-xs);
+            padding-bottom: var(--space-xs);
+            margin-top: var(--space-sm); !important;
             border-width: 1px;
             transform: translateY(0) scale(1);
             filter: blur(0px);
@@ -746,7 +768,7 @@
             position: relative;
             mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
             -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
-            transition: height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+            transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
         }
         #lyrics-overlay.lyrics-cinema-mode #lyrics-reel-viewport {
             height: 172px;
@@ -756,11 +778,11 @@
             will-change: transform;
         }
         .lyrics-reel-item {
-            padding: 4px 10px;
+            padding: var(--space-2xs) var(--space-xs);
             cursor: pointer;
             user-select: none;
             transform-origin: center center;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95), 0 0 4px rgba(0, 0, 0, 0.85);
+            text-shadow: 0 2px 10px var(--color-paper);
             transition:
                 transform 0.52s cubic-bezier(0.16, 1, 0.3, 1),
                 opacity 0.44s cubic-bezier(0.16, 1, 0.3, 1),
@@ -770,7 +792,7 @@
         .lyrics-reel-item.reel-active {
             opacity: 1;
             transform: scale(1.06);
-            filter: blur(0px) drop-shadow(0 2px 10px rgba(0, 0, 0, 0.95));
+            filter: blur(0px) drop-shadow(0 2px 10px var(--color-paper));
         }
         .lyrics-reel-item.reel-prev {
             opacity: 0.42;
@@ -795,7 +817,7 @@
 
         /* Karaoke Active Text */
         .karaoke-wipe-text {
-            color: #ffffff;
+            color: var(--color-ink);
             font-weight: 700;
         }
 
@@ -829,7 +851,7 @@
             bottom: 16%;
             width: 3px;
             border-radius: 9999px;
-            background: linear-gradient(180deg, #38bdf8, #f472b6);
+            background: var(--color-accent);
             transform: scaleY(0);
             transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
         }
@@ -841,12 +863,12 @@
         .lyric-inline-item.lyric-active {
             opacity: 1;
             transform: scale(1.025);
-            color: #ffffff;
+            color: var(--color-ink);
             font-weight: 700;
-            background: linear-gradient(90deg, rgba(171, 210, 250, 0.22), rgba(56, 189, 248, 0.14), rgba(244, 114, 182, 0.16));
-            border-color: rgba(171, 210, 250, 0.48);
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
-            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+            background: var(--color-paper-2);
+            border-color: var(--color-rule);
+            box-shadow: var(--shadow-card);
+            text-shadow: 0 1px 4px var(--color-paper);
             filter: blur(0px);
         }
         .lyric-inline-item.lyric-active::before {
@@ -855,7 +877,7 @@
         .lyric-inline-item.lyric-next {
             opacity: 0.85;
             transform: scale(0.99);
-            color: rgba(226, 238, 255, 0.92);
+            color: var(--color-ink-2);
         }
         .lyric-inline-item.lyric-upcoming {
             opacity: 0.45;
@@ -866,69 +888,42 @@
             left: 0;
             bottom: 0;
             height: 2.5px;
-            background: linear-gradient(90deg, #ABD2FA, #38bdf8, #f472b6);
+            background: var(--color-accent);
             border-radius: 9999px;
-            transition: width 0.12s linear;
+            transform-origin: left;
+            transition: transform 0.12s linear;
             pointer-events: none;
         }
 
         /* ====================================================================
-           GENESIS DESIGN SYSTEM SPECIFICATION (genesis-DESIGN.md)
-           Quietly confident, editorial precision, flat gallery-frame surfaces
+           NIGHT RIDE COCKPIT STREAMER DESIGN SYSTEM
+           High contrast, OLED deep slate, Cyber Cyan accents
            ==================================================================== */
 
-        /* Genesis Light Theme (Default) */
-        :root {
-            --genesis-bg: #FAFAFA;
-            --genesis-surface: #FFFFFF;
-            --genesis-surface-subtle: #F4F4F6;
-            --genesis-surface-alt: #EDEDF2;
-            --genesis-border: #E8E8EC;
-            --genesis-border-subtle: #F0F0F3;
-            --genesis-text-primary: #0A0A0A;
-            --genesis-text-secondary: #6B6B6B;
-            --genesis-text-muted: #9C9C9C;
-            --genesis-primary: #6366F1;
-            --genesis-primary-hover: #4F46E5;
-            --genesis-secondary: #20970B;
-            --genesis-success: #10B981;
-            --genesis-warning: #F59E0B;
-            --genesis-error: #EF4444;
-            --genesis-card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.08);
-            --genesis-button-glow: 0 4px 12px rgba(99, 102, 241, 0.35);
-            --genesis-focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.12);
-            --header-bg: rgba(250, 250, 250, 0.88);
-            --header-dock-bg: rgba(255, 255, 255, 0.92);
-            --line-subtle: #E8E8EC;
-            --focus-ring: rgba(99, 102, 241, 0.25);
-            --rule: #E8E8EC;
-        }
-
-        /* Genesis Dark Theme */
-        [data-theme="dark"] {
-            --genesis-bg: #0B0C10;
-            --genesis-surface: #14151D;
-            --genesis-surface-subtle: #1C1E2A;
-            --genesis-surface-alt: #232738;
-            --genesis-border: #282C3D;
-            --genesis-border-subtle: #212433;
-            --genesis-text-primary: #F3F4F6;
-            --genesis-text-secondary: #9CA3AF;
-            --genesis-text-muted: #6B7280;
-            --genesis-primary: #6366F1;
-            --genesis-primary-hover: #4F46E5;
-            --genesis-secondary: #20970B;
-            --genesis-success: #10B981;
-            --genesis-warning: #F59E0B;
-            --genesis-error: #EF4444;
-            --genesis-card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.32);
-            --genesis-button-glow: 0 4px 14px rgba(99, 102, 241, 0.45);
-            --genesis-focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.25);
-            --header-bg: rgba(11, 12, 16, 0.88);
-            --header-dock-bg: rgba(20, 21, 29, 0.92);
-            --line-subtle: #282C3D;
-            --focus-ring: rgba(99, 102, 241, 0.35);
-            --rule: #282C3D;
+        :root, [data-theme="dark"] {
+            --genesis-bg: var(--color-paper);
+            --genesis-surface: var(--color-paper-2);
+            --genesis-surface-subtle: var(--color-paper);
+            --genesis-surface-alt: var(--color-paper-3);
+            --genesis-border: var(--color-rule);
+            --genesis-border-subtle: var(--color-rule);
+            --genesis-text-primary: var(--color-ink);
+            --genesis-text-secondary: var(--color-muted);
+            --genesis-text-muted: var(--color-muted);
+            --genesis-primary: var(--color-accent);
+            --genesis-primary-hover: var(--color-accent-deep);
+            --genesis-secondary: var(--color-success);
+            --genesis-success: var(--color-success);
+            --genesis-warning: oklch(75% 0.16 70);
+            --genesis-error: var(--color-error);
+            --genesis-card-shadow-hover: var(--shadow-card);
+            --genesis-button-glow: 0 0 16px rgba(0, 229, 255, 0.35);
+            --genesis-focus-ring: 0 0 0 2px var(--color-focus);
+            --header-bg: var(--color-paper-2);
+            --header-dock-bg: var(--color-paper-3);
+            --line-subtle: var(--color-rule);
+            --focus-ring: var(--color-focus);
+            --rule: var(--color-rule);
         }
 
         /* Page Layout & Background */
@@ -956,7 +951,7 @@
         #main-header .bg-white\/\[0\.04\] {
             background: var(--header-dock-bg) !important;
             border-color: var(--genesis-border) !important;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+            box-shadow: var(--shadow-card) !important;
         }
 
         /* Sidebar Panels */
@@ -986,14 +981,14 @@
             background: var(--genesis-surface) !important;
             border: 1px solid var(--genesis-border) !important;
             border-radius: 6px !important;
-            padding: 8px 14px !important;
+            padding: var(--space-xs) var(--space-sm); !important;
             font-size: 14px !important;
             color: var(--genesis-text-primary) !important;
             transition: border-color 180ms ease, box-shadow 180ms ease !important;
         }
 
         #url-input::placeholder, #msg-input::placeholder, #route-link-input::placeholder, #settings-name::placeholder {
-            color: var(--genesis-text-secondary, #9CA3AF) !important;
+            color: var(--genesis-text-secondary) !important;
             opacity: 0.85 !important;
         }
 
@@ -1003,14 +998,14 @@
             outline: none !important;
         }
 
-        /* Genesis 6px Primary Action Buttons */
+        /* Primary Action Buttons */
         #add-btn, #route-check-btn, .btn-primary {
             background: var(--genesis-primary) !important;
-            color: #FFFFFF !important;
-            border-radius: 6px !important;
-            font-weight: 500 !important;
+            color: var(--color-accent-ink) !important;
+            border-radius: var(--radius-sm) !important;
+            font-weight: 600 !important;
             box-shadow: none !important;
-            transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+            transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms ease, box-shadow 180ms ease !important;
         }
 
         #add-btn:hover, #route-check-btn:hover, .btn-primary:hover {
@@ -1019,26 +1014,26 @@
             box-shadow: var(--genesis-button-glow) !important;
         }
 
-        /* Genesis Circular Media Transport Play/Pause Button */
+        /* Circular Media Transport Play/Pause Button */
         #btn-play {
             width: 48px !important;
             height: 48px !important;
-            border-radius: 9999px !important;
-            background: var(--genesis-primary, #6366F1) !important;
-            color: #FFFFFF !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            border-radius: var(--radius-pill) !important;
+            background: var(--color-accent) !important;
+            color: var(--color-accent-ink) !important;
+            border: 1px solid var(--color-rule) !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4) !important;
+            box-shadow: var(--shadow-glow) !important;
             transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms ease, box-shadow 180ms ease !important;
             cursor: pointer !important;
         }
 
         #btn-play:hover {
-            background: var(--genesis-primary-hover, #4F46E5) !important;
+            background: var(--color-accent-deep) !important;
             transform: scale(1.06) translateY(-1px) !important;
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.55) !important;
+            box-shadow: var(--shadow-glow-lg) !important;
         }
 
         #btn-play:active {
@@ -1046,23 +1041,40 @@
         }
 
         #icon-play {
-            color: #FFFFFF !important;
+            color: var(--color-accent-ink) !important;
             font-size: 1.1rem !important;
             pointer-events: none !important;
         }
 
         /* Progress Bar (Genesis Indigo fill, no neon rainbow) */
         #progress-bar {
+            position: relative;
             height: 6px !important;
             background: var(--genesis-surface-subtle) !important;
             border: 1px solid var(--genesis-border) !important;
-            border-radius: 9999px !important;
+            border-radius: var(--radius-pill) !important;
+            cursor: pointer !important;
+            touch-action: none;
+            user-select: none;
+            transition: transform 180ms ease, border-color 180ms ease !important;
         }
-
+        #progress-bar::before {
+            content: '';
+            position: absolute;
+            top: -12px;
+            bottom: -12px;
+            left: 0;
+            right: 0;
+            cursor: pointer;
+        }
+        #progress-bar:hover, #progress-bar.is-scrubbing {
+            transform: scaleY(1.35);
+            border-color: var(--genesis-primary) !important;
+        }
         #progress-fill, #lyrics-line-progress, .lyric-inline-progress {
             background: var(--genesis-primary) !important;
-            box-shadow: 0 0 10px rgba(99, 102, 241, 0.35) !important;
-            border-radius: 9999px !important;
+            box-shadow: var(--shadow-glow-sm) !important;
+            border-radius: var(--radius-pill) !important;
         }
 
         /* Queue Layout */
@@ -1089,9 +1101,9 @@
 
         .mobile-nav-btn {
             min-height: 44px;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             color: var(--genesis-text-secondary);
-            transition: all 150ms ease;
+            transition: color 150ms ease, background-color 150ms ease;
         }
 
         .mobile-nav-btn.text-brand-peri, .mobile-nav-btn.active {
@@ -1122,7 +1134,7 @@
             }
 
             #sec-ctrl {
-                padding-bottom: 0.25rem;
+                padding-bottom: var(--space-2xs);
             }
         }
 
@@ -1136,7 +1148,7 @@
         }
 
         #intro-overlay {
-            background: #000 !important;
+            background: var(--color-paper) !important;
             isolation: isolate;
         }
 
@@ -1145,7 +1157,7 @@
             position: absolute;
             inset: 0;
             z-index: 1;
-            background: radial-gradient(circle at 50% 48%, rgba(255,255,255,0.08), transparent 26%);
+            background: transparent;
             pointer-events: none;
         }
 
@@ -1161,12 +1173,12 @@
         .intro-mark {
             width: 88px;
             height: 88px;
-            border: 1px solid rgba(255,255,255,0.75);
+            border: 1px solid var(--color-rule);
             border-radius: 50%;
             display: grid;
             place-items: center;
-            background: #050505;
-            box-shadow: 0 14px 40px rgba(0,0,0,0.72), inset 0 0 0 8px #000;
+            background: var(--color-paper-2);
+            box-shadow: var(--shadow-card);
             animation: introMarkIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
@@ -1180,22 +1192,18 @@
 
         .intro-wordmark {
             font-size: clamp(1.35rem, 2.7vw, 2.25rem);
-            letter-spacing: 0.28em;
-            padding-left: 0.28em;
-            font-weight: 500;
-            color: #f8f8f8;
+            font-weight: 700;
+            color: var(--color-ink);
             animation: introWordIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both;
         }
 
         .intro-subline {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            color: rgba(255, 255, 255, 0.85);
+            gap: var(--space-sm);
+            color: var(--color-muted);
             font-size: 0.8125rem;
             font-weight: 600;
-            letter-spacing: 0.22em;
-            padding-left: 0.22em;
             margin-top: 0.8rem;
             animation: introWordIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.32s both;
         }
@@ -1204,43 +1212,42 @@
             content: '';
             width: 28px;
             height: 1px;
-            background: rgba(255,255,255,0.45);
+            background: var(--color-rule);
         }
 
         .intro-progress-shell {
             width: min(210px, 52vw);
             height: 1px;
-            background: rgba(255,255,255,0.22);
+            background: var(--color-rule);
             margin-top: 2.4rem;
             overflow: hidden;
         }
 
         .intro-progress-bar {
-            background: #f5f5f5 !important;
+            background: var(--color-accent) !important;
             box-shadow: none !important;
         }
 
         #btn-skip-intro {
-            background: rgba(255, 255, 255, 0.15) !important;
-            border: 1px solid rgba(255, 255, 255, 0.35) !important;
-            color: #ffffff !important;
+            background: var(--color-paper-2); !important;
+            border: 1px solid var(--color-rule); !important;
+            color: var(--color-ink) !important;
             font-size: 0.8125rem !important;
             font-weight: 600 !important;
-            border-radius: 9999px !important;
+            border-radius: var(--radius-pill) !important;
             padding: 0.6rem 1.4rem !important;
-            letter-spacing: 0.04em;
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 255, 255, 0.1) !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            box-shadow: var(--shadow-card) !important;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease !important;
         }
 
         #btn-skip-intro:hover {
-            background: rgba(255, 255, 255, 0.28) !important;
-            border-color: rgba(255, 255, 255, 0.6) !important;
-            color: #ffffff !important;
+            background: var(--color-paper-3); !important;
+            border-color: var(--color-accent); !important;
+            color: var(--color-ink) !important;
             transform: translateY(-1px) scale(1.02);
-            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7), 0 0 20px rgba(255, 255, 255, 0.2) !important;
+            box-shadow: var(--shadow-glow-sm) !important;
         }
 
         #btn-skip-intro:active {
@@ -1260,8 +1267,8 @@
         @media (max-width: 767px) {
             .intro-mark { width: 76px; height: 76px; }
             .intro-mark img { width: 54px; height: 54px; }
-            .intro-wordmark { letter-spacing: 0.18em; padding-left: 0.18em; font-size: 1.5rem; }
-            .intro-subline { font-size: 0.75rem; letter-spacing: 0.18em; padding-left: 0.18em; }
+            .intro-wordmark {  padding-left: 0.18em; font-size: 1.5rem; }
+            .intro-subline { font-size: 0.75rem;  padding-left: 0.18em; }
         }
 
         /* Finishing pass: quiet hierarchy for dense controls and live queue items. */
@@ -1276,34 +1283,34 @@
         }
 
         .eq-bar {
-            background: var(--genesis-primary, #6366F1) !important;
+            background: var(--genesis-primary) !important;
         }
 
         #toast-container > * {
-            background: var(--genesis-surface, #FFFFFF) !important;
-            border: 1px solid var(--genesis-border, #E8E8EC) !important;
-            color: var(--genesis-text-primary, #0A0A0A) !important;
-            box-shadow: 0 12px 30px rgba(0,0,0,0.12) !important;
-            border-radius: 8px !important;
+            background: var(--genesis-surface) !important;
+            border: 1px solid var(--genesis-border) !important;
+            color: var(--genesis-text-primary) !important;
+            box-shadow: var(--shadow-card) !important;
+            border-radius: var(--radius-card) !important;
         }
 
         ::selection {
-            background: rgba(99, 102, 241, 0.2);
-            color: var(--genesis-text-primary, #0A0A0A);
+            background: var(--color-accent);
+            color: var(--genesis-text-primary);
         }
 
-        ::-webkit-scrollbar-track { background: var(--genesis-bg, #FAFAFA); }
-        ::-webkit-scrollbar-thumb { background: var(--genesis-border, #E8E8EC); }
-        ::-webkit-scrollbar-thumb:hover { background: var(--genesis-text-muted, #9C9C9C); }
+        ::-webkit-scrollbar-track { background: var(--genesis-bg); }
+        ::-webkit-scrollbar-thumb { background: var(--genesis-border); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--genesis-text-muted); }
 
         /* Volume Slider & Touch Targets */
         #vol-slider {
             height: 8px !important;
             -webkit-appearance: none;
             appearance: none;
-            background: var(--genesis-surface-subtle, #1C1E2A) !important;
-            border: 1px solid var(--genesis-border, #282C3D) !important;
-            border-radius: 9999px !important;
+            background: var(--genesis-surface-subtle) !important;
+            border: 1px solid var(--genesis-border) !important;
+            border-radius: var(--radius-pill) !important;
             outline: none;
         }
 
@@ -1313,9 +1320,9 @@
             width: 22px;
             height: 22px;
             border-radius: 50%;
-            background: var(--genesis-primary, #6366F1);
-            border: 2px solid #FFFFFF;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            background: var(--genesis-primary);
+            border: 2px solid var(--color-paper);
+            box-shadow: var(--shadow-card);
             cursor: pointer;
             transition: transform 0.15s ease;
         }
@@ -1329,9 +1336,9 @@
             width: 22px;
             height: 22px;
             border-radius: 50%;
-            background: var(--genesis-primary, #6366F1);
-            border: 2px solid #FFFFFF;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            background: var(--genesis-primary);
+            border: 2px solid var(--color-paper);
+            box-shadow: var(--shadow-card);
             cursor: pointer;
         }
 
@@ -1345,13 +1352,13 @@
                 min-width: 380px !important;
                 max-width: 380px !important;
                 flex: none !important;
-                border-color: var(--genesis-border, #E8E8EC) !important;
+                border-color: var(--genesis-border) !important;
             }
             #player-area { 
                 flex: 1 1 0% !important;
                 min-width: 0 !important;
                 width: auto !important;
-                border-right: 1px solid var(--genesis-border, #E8E8EC); 
+                border-right: 1px solid var(--genesis-border); 
             }
         }
 
@@ -1378,26 +1385,26 @@
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden bg-[var(--genesis-bg)] text-[var(--genesis-text-primary)] transition-colors duration-200">
 
-    <!-- Obsidian minimal intro -->
-    <div id="intro-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center select-none overflow-hidden">
-        <canvas id="intro-warp-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0"></canvas>
+    <!-- Video Intro Overlay -->
+    <div id="intro-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center select-none overflow-hidden bg-black">
+        <video id="intro-video" poster="/intro-poster.jpg" playsinline preload="auto" class="absolute inset-0 w-full h-full object-contain bg-black z-10">
+            <source src="/intro.mp4" type="video/mp4">
+            <source src="/intro.mov" type="video/quicktime">
+        </video>
 
-        <div class="relative z-10 flex flex-col items-center px-6 text-center pointer-events-none">
-            <div class="intro-mark"><img src="/PNRJAPANLOGO.png" alt="MAITEMBATH GANG PARTY"></div>
-            <h1 class="intro-wordmark mt-6 font-bold tracking-widest text-white">MAITEMBATH</h1>
-            <p class="intro-subline"><span class="font-bold text-white/90">GANG PARTY</span></p>
-            <div class="intro-progress-shell"><div class="intro-progress-bar h-full"></div></div>
+        <div id="intro-unmute-hint" class="hidden absolute top-6 z-20 px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-black/70 border border-white/20 backdrop-blur-md animate-pulse">
+            <span class="fa-solid fa-volume-xmark mr-1.5 text-cyan-400"></span>แตะที่หน้าจอเพื่อเปิดเสียง
         </div>
 
-        <button id="btn-skip-intro" type="button" class="absolute bottom-8 z-20 px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
-            <span>แตะเพื่อเริ่ม</span>
-            <i class="fa-solid fa-arrow-right text-xs"></i>
+        <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-20 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
+            <span>ข้ามอินโทร</span>
+            <span class="fa-solid fa-forward-step text-xs"></span>
         </button>
     </div>
 
     <!-- Login/Profile Overlay -->
     <div id="login-overlay" class="fixed inset-0 bg-primary/95 backdrop-blur z-[60] flex items-center justify-center hidden">
-        <div class="bg-[#0a0a0a] border border-brand-peri/30 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl shadow-brand-deep/20">
+        <div class="bg-slate-950 border border-brand-peri/30 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl shadow-brand-deep/20">
             <h2 class="text-xl font-bold text-brand-peri mb-1">ยินดีต้อนรับ</h2>
             <p class="text-[11px] text-brand-light/70 mb-4">กรุณาตั้งชื่อและเลือกสีประจำตัว</p>
             
@@ -1418,7 +1425,7 @@
 
     <!-- Settings, Profile & 5-Tap Hidden Test Lab Modal -->
     <div id="settings-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[70] flex items-center justify-center p-3 hidden">
-        <div class="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-2xl shadow-black overflow-hidden animate-fade-in-up">
+        <div class="bg-slate-950 border border-white/10 rounded-3xl w-full max-w-md max-h-[90dvh] flex flex-col shadow-2xl shadow-black overflow-hidden animate-fade-in-up">
             <!-- Modal Header -->
             <div class="px-5 py-3.5 bg-black/90 border-b border-white/[0.08] flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-2.5 select-none cursor-pointer" id="modal-gear-5tap" title="กดย้ำๆ 5 ครั้งเพื่อเปิดหน้าทดสอบการแจ้งเตือน">
@@ -1440,12 +1447,11 @@
                 <!-- 1. Profile Customization -->
                 <div class="space-y-3.5 pb-4 border-b border-white/[0.08]">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
-                            <i class="fa-solid fa-user-pen"></i> ปรับแต่งโปรไฟล์ของคุณ
+                        <h3 class="text-xs font-bold text-cyan-400 flex items-center gap-1.5"><span class="fa-solid fa-user-pen"></span> ปรับแต่งโปรไฟล์ของคุณ
                         </h3>
                         <div class="flex items-center gap-1.5">
                             <div class="w-5 h-5 rounded-full overflow-hidden border border-cyan-400/50 bg-white/5 flex items-center justify-center shrink-0">
-                                <img id="profile-preview-avatar" src="" alt="" class="w-full h-full object-cover hidden">
+                                <img id="profile-preview-avatar" src="/PNRJAPANLOGO.png" alt="" class="w-full h-full object-cover hidden">
                                 <span id="profile-preview-avatar-init" class="text-[9px] font-bold text-cyan-300">U</span>
                             </div>
                             <span id="profile-preview-badge" class="text-[10px] px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/10 font-medium text-slate-300">ตัวอย่างชื่อ</span>
@@ -1457,8 +1463,8 @@
                         <div class="flex items-center gap-3.5">
                             <!-- Large Avatar Preview with Camera Overlay -->
                             <div class="relative group shrink-0">
-                                <div id="settings-avatar-preview-wrap" class="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-cyan-400/60 shadow-[0_0_16px_rgba(0,229,255,0.35)] bg-black/60 flex items-center justify-center transition-transform hover:scale-105">
-                                    <img id="settings-avatar-preview" src="" alt="Avatar Preview" class="w-full h-full object-cover hidden">
+                                <div id="settings-avatar-preview-wrap" class="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-cyan-400/60 shadow-lg shadow-cyan-500/20 bg-black/60 flex items-center justify-center transition-transform hover:scale-105">
+                                    <img id="settings-avatar-preview" src="/PNRJAPANLOGO.png" alt="Avatar Preview" class="w-full h-full object-cover hidden">
                                     <span id="settings-avatar-initial" class="text-xl sm:text-2xl font-bold text-cyan-300">U</span>
                                 </div>
                                 <label for="settings-avatar-file" class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-cyan-400 hover:bg-cyan-300 text-black flex items-center justify-center text-[10px] cursor-pointer shadow-md transition-transform hover:scale-110 active:scale-95" title="อัปโหลดรูปภาพใหม่จากเครื่อง">
@@ -1471,7 +1477,7 @@
                             <div class="flex-1 min-w-0 space-y-1.5">
                                 <p class="text-xs font-semibold text-white">รูปโปรไฟล์ (Profile Picture)</p>
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <label for="settings-avatar-file" class="text-[11px] font-semibold px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 hover:text-white cursor-pointer transition flex items-center gap-1.5 shadow-[0_0_10px_rgba(0,229,255,0.15)] active:scale-95">
+                                    <label for="settings-avatar-file" class="text-[11px] font-semibold px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 hover:text-white cursor-pointer transition flex items-center gap-1.5 shadow-md shadow-cyan-500/20 active:scale-95">
                                         <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i>
                                         <span>อัปโหลดรูป</span>
                                     </label>
@@ -1506,12 +1512,12 @@
                                 <input id="settings-color" type="color" value="#00E5FF" class="w-7 h-7 rounded-full cursor-pointer bg-transparent border-0 p-0">
                             </div>
                             <div class="flex items-center gap-1.5">
-                                <button type="button" data-preset-color="#00E5FF" class="w-5 h-5 rounded-full bg-[#00E5FF] border border-white/30 hover:scale-110 transition shadow-sm"></button>
-                                <button type="button" data-preset-color="#10b981" class="w-5 h-5 rounded-full bg-[#10b981] border border-white/30 hover:scale-110 transition shadow-sm"></button>
-                                <button type="button" data-preset-color="#f472b6" class="w-5 h-5 rounded-full bg-[#f472b6] border border-white/30 hover:scale-110 transition shadow-sm"></button>
-                                <button type="button" data-preset-color="#fbbf24" class="w-5 h-5 rounded-full bg-[#fbbf24] border border-white/30 hover:scale-110 transition shadow-sm"></button>
-                                <button type="button" data-preset-color="#a78bfa" class="w-5 h-5 rounded-full bg-[#a78bfa] border border-white/30 hover:scale-110 transition shadow-sm"></button>
-                                <button type="button" data-preset-color="#f87171" class="w-5 h-5 rounded-full bg-[#f87171] border border-white/30 hover:scale-110 transition shadow-sm"></button>
+                                <button type="button" data-preset-color="#00E5FF" class="w-5 h-5 rounded-full bg-cyan-400 border border-white/30 hover:scale-110 transition shadow-sm"></button>
+                                <button type="button" data-preset-color="#10b981" class="w-5 h-5 rounded-full bg-emerald-400 border border-white/30 hover:scale-110 transition shadow-sm"></button>
+                                <button type="button" data-preset-color="#f472b6" class="w-5 h-5 rounded-full bg-pink-400 border border-white/30 hover:scale-110 transition shadow-sm"></button>
+                                <button type="button" data-preset-color="#fbbf24" class="w-5 h-5 rounded-full bg-amber-400 border border-white/30 hover:scale-110 transition shadow-sm"></button>
+                                <button type="button" data-preset-color="#a78bfa" class="w-5 h-5 rounded-full bg-purple-400 border border-white/30 hover:scale-110 transition shadow-sm"></button>
+                                <button type="button" data-preset-color="#f87171" class="w-5 h-5 rounded-full bg-red-400 border border-white/30 hover:scale-110 transition shadow-sm"></button>
                             </div>
                         </div>
                     </div>
@@ -1523,8 +1529,7 @@
                 <!-- 2. Auto-DJ Continuous Playback & Mood Mode -->
                 <div class="space-y-3 pb-4 border-b border-brand-deep/40">
                     <div class="flex items-center justify-between gap-2">
-                        <h3 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5">
-                            <i class="fa-solid fa-wand-magic-sparkles text-brand-peri"></i> ระบบ Auto-DJ เล่นต่อเนื่องเมื่อคิวหมด
+                        <h3 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5"><span class="fa-solid fa-wand-magic-sparkles text-brand-peri"></span> ระบบ Auto-DJ เล่นต่อเนื่องเมื่อคิวหมด
                         </h3>
                         <span id="autodj-status-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-brand-deep/60 text-brand-peri border border-brand-peri/30 font-medium">เปิดอยู่ • โหมดเคลิ้มๆ</span>
                     </div>
@@ -1541,42 +1546,42 @@
                         <div class="flex items-center justify-between gap-2">
                             <span class="text-[11px] text-brand-light/85 font-medium">เลือกโหมดอารมณ์ / แนวเพลง:</span>
                             <select id="settings-autodj-mode" class="bg-primary border border-brand-deep/60 text-brand-peri text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-brand-peri">
-                                <option value="khlerm">🌙 เคลิ้มๆ ลอยๆ (Chill & Dreamy)</option>
-                                <option value="similar">🎯 อิงตามเพลงล่าสุด (Smart Match)</option>
-                                <option value="indie_thai">🎸 อินดี้/ป๊อปไทยฮิต (Thai Pop & Indie)</option>
-                                <option value="acoustic_cafe">☕ อะคูสติกฟังสบาย (Acoustic & Cafe)</option>
-                                <option value="party_dance">🔥 สายตี้แดนซ์มันส์ๆ (Party & Dance)</option>
-                                <option value="retro_90s">📼 ย้อนยุค 90s-2000s (Retro Hits)</option>
-                                <option value="inter_chill">🌎 สากลเคลิ้มๆ (Global R&B / Lofi)</option>
-                                <option value="lukthung_party">🍻 ลูกทุ่งอินดี้/สายม่วน (Lukthung)</option>
+                                <option value="khlerm">Chill & Dreamy</option>
+                                <option value="similar">Smart Match</option>
+                                <option value="indie_thai">Thai Pop & Indie</option>
+                                <option value="acoustic_cafe">Acoustic & Cafe</option>
+                                <option value="party_dance">Party & Dance</option>
+                                <option value="retro_90s">Retro Hits 90s-2000s</option>
+                                <option value="inter_chill">Global R&B / Lofi</option>
+                                <option value="lukthung_party">Lukthung & Morlam</option>
                             </select>
                         </div>
 
                         <!-- Quick Mood Pills -->
                         <div class="grid grid-cols-2 gap-1.5" id="autodj-preset-grid">
                             <button type="button" data-autodj-preset="khlerm" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-brand-deep/80 border-brand-peri/50 text-white">
-                                <span>🌙</span> <span class="truncate">เคลิ้มๆ ลอยๆ</span>
+                                <i class="fa-solid fa-moon text-cyan-400"></i> <span class="truncate">เคลิ้มๆ ลอยๆ</span>
                             </button>
-                            <button type="button" data-autodj-preset="similar" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>🎯</span> <span class="truncate">ตามเพลงล่าสุด</span>
+                            <button type="button" data-autodj-preset="similar" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-bullseye text-cyan-400"></i> <span class="truncate">ตามเพลงล่าสุด</span>
                             </button>
-                            <button type="button" data-autodj-preset="indie_thai" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>🎸</span> <span class="truncate">อินดี้/ป๊อปไทยฮิต</span>
+                            <button type="button" data-autodj-preset="indie_thai" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-guitar text-cyan-400"></i> <span class="truncate">อินดี้/ป๊อปไทยฮิต</span>
                             </button>
-                            <button type="button" data-autodj-preset="acoustic_cafe" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>☕</span> <span class="truncate">อะคูสติกฟังสบาย</span>
+                            <button type="button" data-autodj-preset="acoustic_cafe" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-mug-hot text-cyan-400"></i> <span class="truncate">อะคูสติกฟังสบาย</span>
                             </button>
-                            <button type="button" data-autodj-preset="party_dance" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>🔥</span> <span class="truncate">สายตี้แดนซ์มันส์ๆ</span>
+                            <button type="button" data-autodj-preset="party_dance" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-fire text-amber-400"></i> <span class="truncate">สายตี้แดนซ์มันส์ๆ</span>
                             </button>
-                            <button type="button" data-autodj-preset="retro_90s" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>📼</span> <span class="truncate">ย้อนยุค 90s-2000s</span>
+                            <button type="button" data-autodj-preset="retro_90s" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-tape text-purple-400"></i> <span class="truncate">ย้อนยุค 90s-2000s</span>
                             </button>
-                            <button type="button" data-autodj-preset="inter_chill" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>🌎</span> <span class="truncate">สากลเคลิ้มๆ</span>
+                            <button type="button" data-autodj-preset="inter_chill" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-globe text-cyan-400"></i> <span class="truncate">สากลเคลิ้มๆ</span>
                             </button>
-                            <button type="button" data-autodj-preset="lukthung_party" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-[#0a0f18] border-brand-deep/50 text-brand-light/75 hover:text-white">
-                                <span>🍻</span> <span class="truncate">ลูกทุ่งสายม่วน</span>
+                            <button type="button" data-autodj-preset="lukthung_party" class="px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-left border transition flex items-center gap-1.5 bg-slate-900 border-brand-deep/50 text-brand-light/75 hover:text-white">
+                                <i class="fa-solid fa-beer-mug-empty text-amber-400"></i> <span class="truncate">ลูกทุ่งสายม่วน</span>
                             </button>
                         </div>
 
@@ -1592,7 +1597,7 @@
                         </div>
 
                         <!-- Play Auto-DJ Immediately Button -->
-                        <button id="settings-autodj-play-now-btn" type="button" class="w-full bg-[#0d1624] hover:bg-brand-deep/80 border border-brand-peri/40 text-brand-light hover:text-white rounded-lg py-2 px-3 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm">
+                        <button id="settings-autodj-play-now-btn" type="button" class="w-full bg-slate-900 hover:bg-brand-deep/80 border border-brand-peri/40 text-brand-light hover:text-white rounded-lg py-2 px-3 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm">
                             <i class="fa-solid fa-shuffle text-brand-peri"></i> สุ่มเปิดเพลงโหมดนี้ทันที
                         </button>
                     </div>
@@ -1600,8 +1605,7 @@
 
                 <!-- 3. General & Navigation Settings -->
                 <div class="space-y-3 pb-4 border-b border-brand-deep/40">
-                    <h3 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5">
-                        <i class="fa-solid fa-sliders"></i> ตั้งค่าระบบและการแจ้งเตือน
+                    <h3 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5"><span class="fa-solid fa-sliders"></span> ตั้งค่าระบบและการแจ้งเตือน
                     </h3>
 
                     <label class="flex items-center justify-between py-1 cursor-pointer">
@@ -1623,14 +1627,14 @@
                     <div class="flex items-center justify-between pt-1.5 border-t border-brand-deep/30">
                         <span class="text-xs text-white font-medium">รูปแบบแผนที่เรดาร์</span>
                         <select id="settings-map-style" class="bg-primary border border-brand-deep/60 text-brand-peri text-[11px] rounded-lg px-2.5 py-1 focus:outline-none focus:border-brand-peri">
-                            <option value="dark">🌙 แผนที่มืด (เห็นเรดาร์ชัดสุด)</option>
-                            <option value="street">🗺️ แผนที่ถนน Google (สีปกติ)</option>
-                            <option value="hybrid">🛰️ ภาพดาวเทียม + ถนน</option>
+                            <option value="dark">แผนที่มืด (เห็นเรดาร์ชัดสุด)</option>
+                            <option value="street">แผนที่ถนน Google (สีปกติ)</option>
+                            <option value="hybrid">ภาพดาวเทียม + ถนน</option>
                         </select>
                     </div>
 
                     <div class="pt-1.5">
-                        <button id="settings-refresh-gps-btn" class="w-full bg-[#101929] hover:bg-brand-deep/70 border border-brand-deep/60 text-brand-light rounded-lg py-2 px-3 text-[11px] transition flex items-center justify-center gap-1.5">
+                        <button id="settings-refresh-gps-btn" class="w-full bg-slate-900 hover:bg-brand-deep/70 border border-brand-deep/60 text-brand-light rounded-lg py-2 px-3 text-[11px] transition flex items-center justify-center gap-1.5">
                             <i class="fa-solid fa-location-crosshairs text-sky-400"></i> รีเฟรชพิกัด GPS ปัจจุบัน
                         </button>
                     </div>
@@ -1638,7 +1642,7 @@
 
                 <!-- 3. 5-Tap Unlock Button for Event & Alert Test Lab -->
                 <div class="pt-1">
-                    <button id="secret-test-unlock-btn" type="button" class="w-full bg-[#0a0f18] hover:bg-[#111a29] active:scale-[0.99] border border-dashed border-brand-deep/70 rounded-xl px-3 py-2.5 flex items-center justify-between text-left transition select-none">
+                    <button id="secret-test-unlock-btn" type="button" class="w-full bg-slate-900 hover:bg-slate-800 active:scale-[0.99] border border-dashed border-brand-deep/70 rounded-xl px-3 py-2.5 flex items-center justify-between text-left transition select-none">
                         <div class="flex items-center gap-2 min-w-0">
                             <i class="fa-solid fa-flask-vial text-amber-400 text-xs shrink-0"></i>
                             <div class="min-w-0">
@@ -1655,7 +1659,7 @@
                     <div class="flex items-center justify-between border-b border-white/10 pb-2">
                         <div class="flex items-center gap-1.5">
                             <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                            <h3 class="text-xs font-bold text-amber-300 uppercase tracking-wider">🧪 ศูนย์ทดสอบระบบ & การแจ้งเตือน (ปลดล็อกแล้ว)</h3>
+                            <h3 class="text-xs font-bold text-amber-300 font-medium"><span class="fa-solid fa-flask mr-1.5"></span>ศูนย์ทดสอบระบบ & การแจ้งเตือน (ปลดล็อกแล้ว)</h3>
                         </div>
                         <label class="flex items-center gap-1 text-[10px] text-sky-300 cursor-pointer select-none" title="ส่งผลการทดสอบไปที่ทุกเครื่องพร้อมกัน">
                             <input type="checkbox" id="test-sync-all-toggle" checked class="rounded accent-sky-400">
@@ -1726,28 +1730,28 @@
 
                         <!-- Test 5: Severe Thunderstorm & Arrival & Danmaku/Reactions Row -->
                         <div class="grid grid-cols-3 gap-1.5 pt-1">
-                            <button id="btn-test-storm-alert" type="button" class="bg-[#141c2b] hover:bg-red-950/60 border border-red-500/30 rounded-lg py-2 px-1.5 text-center transition">
+                            <button id="btn-test-storm-alert" type="button" class="bg-slate-900 hover:bg-red-950/60 border border-red-500/30 rounded-lg py-2 px-1.5 text-center transition">
                                 <i class="fa-solid fa-cloud-bolt text-red-400 text-xs block mb-0.5"></i>
                                 <span class="text-[10px] text-white font-medium block">เตือนพายุหนัก</span>
                             </button>
-                            <button id="btn-test-arrived-alert" type="button" class="bg-[#141c2b] hover:bg-emerald-950/60 border border-emerald-500/30 rounded-lg py-2 px-1.5 text-center transition">
+                            <button id="btn-test-arrived-alert" type="button" class="bg-slate-900 hover:bg-emerald-950/60 border border-emerald-500/30 rounded-lg py-2 px-1.5 text-center transition">
                                 <i class="fa-solid fa-location-dot text-emerald-400 text-xs block mb-0.5"></i>
                                 <span class="text-[10px] text-white font-medium block">ถึงที่หมาย 100%</span>
                             </button>
-                            <button id="btn-test-party-fx" type="button" class="bg-[#141c2b] hover:bg-purple-950/60 border border-purple-500/30 rounded-lg py-2 px-1.5 text-center transition">
+                            <button id="btn-test-party-fx" type="button" class="bg-slate-900 hover:bg-purple-950/60 border border-purple-500/30 rounded-lg py-2 px-1.5 text-center transition">
                                 <i class="fa-solid fa-wand-magic-sparkles text-purple-400 text-xs block mb-0.5"></i>
                                 <span class="text-[10px] text-white font-medium block">เอฟเฟกต์ปาร์ตี้</span>
                             </button>
                         </div>
 
                         <!-- Test 6: Replay 10x Cyber Intro & Cinematic Sound -->
-                        <button id="btn-test-intro" type="button" class="w-full mt-1.5 bg-[#0d1624] hover:bg-[#121f33] border border-cyan-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
+                        <button id="btn-test-intro" type="button" class="w-full mt-1.5 bg-slate-900 hover:bg-slate-800 border border-cyan-400/40 rounded-lg p-2.5 text-left transition flex items-center justify-between gap-2 group">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0">
                                     <i class="fa-solid fa-film text-xs"></i>
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="text-xs font-semibold text-white group-hover:text-cyan-300 truncate">🎬 เล่น Intro เปิดตัวเว็บ 3D + เสียงเอฟเฟกต์</p>
+                                    <p class="text-xs font-semibold text-white group-hover:text-cyan-300 truncate">เล่น Intro เปิดตัวเว็บ 3D + เสียงเอฟเฟกต์</p>
                                     <p class="text-[10px] text-brand-light/60 truncate">ทดสอบฉากเปิดตัว Warp 3D และซาวด์สังเคราะห์สุดเท่</p>
                                 </div>
                             </div>
@@ -1761,7 +1765,7 @@
 
     <!-- Fullscreen QR Code Party Modal -->
     <div id="qr-modal" class="fixed inset-0 bg-black/90 backdrop-blur-xl z-[75] flex items-center justify-center p-4 hidden select-none">
-        <div class="relative bg-gradient-to-b from-[#0c1424] via-[#070b14] to-[#04060a] border border-cyan-400/50 rounded-3xl w-full max-w-sm sm:max-w-md p-6 sm:p-7 flex flex-col items-center text-center shadow-[0_0_60px_rgba(0,229,255,0.25)] animate-fade-in-up">
+        <div class="relative bg-slate-950 border border-cyan-400/50 rounded-3xl w-full max-w-sm sm:max-w-md p-6 sm:p-7 flex flex-col items-center text-center shadow-2xl shadow-cyan-500/20 animate-fade-in-up">
             
             <!-- Close Button -->
             <button id="close-qr-modal-btn" type="button" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/[0.05] hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 flex items-center justify-center text-sm transition active:scale-90" title="ปิดหน้าต่าง">
@@ -1769,20 +1773,20 @@
             </button>
 
             <!-- Party Badge Header -->
-            <div class="flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-[11px] font-bold tracking-wide uppercase shadow-[0_0_12px_rgba(0,229,255,0.2)]">
-                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,229,255,0.9)]"></span>
-                <span>MAITEMBATH GANG PARTY</span>
+            <div class="flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-[11px] font-semibold shadow-md shadow-cyan-500/20">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-sm shadow-cyan-400/50"></span>
+                <span>Maitembath Gang Party</span>
             </div>
 
             <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight mt-1">
-                สแกนเพื่อเข้าร่วมปาร์ตี้ 📱
+                สแกนเพื่อเข้าร่วมปาร์ตี้
             </h2>
             <p class="text-xs text-slate-400 mt-1 mb-5 max-w-xs">
                 เชื่อมต่อ Wi-Fi เดียวกัน แล้วเปิดกล้องมือถือสแกนเพื่อขอเพลง โหวต และส่งข้อความวิ่งได้ทันที!
             </p>
 
             <!-- Fullscreen QR Frame (High Contrast & Pure White for instant camera detection) -->
-            <div class="relative p-3.5 sm:p-4 bg-white rounded-2xl sm:rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.8)] border-4 border-cyan-400/40 transition-transform hover:scale-[1.02]">
+            <div class="relative p-3.5 sm:p-4 bg-white rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/80 border-4 border-cyan-400/40 transition-transform hover:scale-[1.02]">
                 <div id="modal-qrcode" class="w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] flex items-center justify-center"></div>
             </div>
 
@@ -1790,10 +1794,10 @@
             <div class="w-full mt-6 space-y-2.5">
                 <div class="flex items-center justify-between gap-2 bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2.5">
                     <div class="min-w-0 text-left">
-                        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold block">ลิงก์ห้องปาร์ตี้ (Party URL)</span>
+                        <span class="text-[9px] font-medium text-slate-400 font-semibold block">ลิงก์ห้องปาร์ตี้ (Party URL)</span>
                         <span id="modal-url-display" class="text-xs font-mono font-bold text-cyan-300 select-all truncate block"></span>
                     </div>
-                    <button id="modal-copy-link-btn" type="button" class="shrink-0 px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-[0_0_10px_rgba(0,229,255,0.2)]">
+                    <button id="modal-copy-link-btn" type="button" class="shrink-0 px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-cyan-500/20">
                         <i class="fa-solid fa-copy text-xs"></i>
                         <span>คัดลอก</span>
                     </button>
@@ -1821,13 +1825,13 @@
             <div class="min-w-0">
                 <h1 class="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2 truncate">
                     <span class="truncate">MAITEMBATH</span>
-                    <span class="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold tracking-wider uppercase hidden sm:inline shrink-0">PARTY</span>
+                    <span class="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold hidden sm:inline shrink-0">Party</span>
                 </h1>
             </div>
         </div>
 
         <!-- Minimalist Floating Header Dock -->
-        <div class="flex items-center gap-1 sm:gap-1.5 bg-white/[0.04] backdrop-blur-xl p-1 rounded-full border border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.6)] shrink-0">
+        <div class="flex items-center gap-1 sm:gap-1.5 bg-white/[0.04] backdrop-blur-xl p-1 rounded-full border border-white/[0.08] shadow-xl shadow-black/60 shrink-0">
             <!-- Radar & GPS Pill -->
             <button id="header-radar-btn" class="h-8 px-3 rounded-full text-xs font-medium text-slate-300 hover:text-cyan-300 hover:bg-white/[0.08] transition flex items-center gap-1.5 active:scale-95" title="เปิด/ปิด เรดาร์สภาพอากาศ & GPS นำทาง">
                 <i class="fa-solid fa-satellite-dish text-cyan-400 text-xs"></i>
@@ -1870,11 +1874,11 @@
     <main class="relative flex-1 flex flex-col md:flex-row overflow-hidden">
 
         <!-- Video Player Area (Clean Pure Black Video Viewport) -->
-        <section id="player-area" class="relative flex items-center justify-center bg-black overflow-hidden shrink-0 transition-all duration-300">
+        <section id="player-area" class="relative flex items-center justify-center bg-black overflow-hidden shrink-0 transition-colors duration-200 duration-300">
             <!-- Unmute / Tap to Play Button (Shown when mobile browser blocks autoplay) -->
             <button id="unmute-btn" type="button" class="hidden absolute top-4 left-4 z-40 bg-violet-600/90 hover:bg-violet-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl backdrop-blur flex items-center gap-2 border border-violet-400/50 transition active:scale-95 animate-pulse cursor-pointer" title="คลิกเพื่อเริ่มเล่นวิดีโอ (Unmute & Play)">
                 <i class="fa-solid fa-volume-high text-xs"></i>
-                <span>แตะเพื่อเริ่มเล่นวิดีโอ & เสียง 🎵</span>
+                <span>แตะเพื่อเริ่มเล่นวิดีโอ & เสียง</span>
             </button>
 
             <!-- Danmaku layer -->
@@ -1886,7 +1890,7 @@
             </div>
 
             <!-- Native HTML5 Video for Direct Clean HD Streaming (Fallback) -->
-            <video id="native-video" class="absolute inset-0 w-full h-full object-contain bg-black hidden z-20 pointer-events-none select-none" playsinline disablepictureinpicture controlslist="nodownload nofullscreen noremoteplayback"></video>
+            <video id="native-video" poster="/PNRJAPANLOGO.png" class="absolute inset-0 w-full h-full object-contain bg-black hidden z-20 pointer-events-none select-none" playsinline disablepictureinpicture controlslist="nodownload nofullscreen noremoteplayback"></video>
 
             <!-- Direct Video Loading Overlay -->
             <div id="direct-video-loading" class="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center z-[25] hidden text-center p-4 pointer-events-none">
@@ -1898,33 +1902,33 @@
             <audio id="native-audio" class="hidden"></audio>
             
             <!-- Empty state with 3-Step Clear Onboarding -->
-            <div id="empty-state" class="absolute inset-0 bg-[var(--genesis-bg,#FAFAFA)] flex flex-col items-center justify-center p-4 sm:p-6 z-10 transition-all duration-500 overflow-y-auto select-none">
+            <div id="empty-state" class="absolute inset-0 bg-[var(--genesis-bg)] flex flex-col items-center justify-center p-4 sm:p-6 z-10 transition-colors duration-200 duration-500 overflow-y-auto select-none">
                 <div class="max-w-lg w-full text-center space-y-3 sm:space-y-4 my-auto">
                     <!-- Brand Icon & Greeting -->
                     <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 mx-auto flex items-center justify-center text-lg sm:text-xl shadow-sm">
                         <i class="fa-solid fa-music"></i>
                     </div>
                     <div>
-                        <h3 class="text-lg sm:text-xl font-bold text-[var(--genesis-text-primary,#0A0A0A)]">ยินดีต้อนรับสู่ MAITEMBATH GANG PARTY</h3>
-                        <p class="text-xs sm:text-sm text-[var(--genesis-text-secondary,#6B6B6B)] mt-1 font-medium">ระบบเล่นเพลงและคาราโอเกะร่วมกันในกลุ่มเพื่อน</p>
+                        <h3 class="text-lg sm:text-xl font-bold text-[var(--genesis-text-primary)]">ยินดีต้อนรับสู่ MAITEMBATH GANG PARTY</h3>
+                        <p class="text-xs sm:text-sm text-[var(--genesis-text-secondary)] mt-1 font-medium">ระบบเล่นเพลงและคาราโอเกะร่วมกันในกลุ่มเพื่อน</p>
                     </div>
 
                     <!-- 3-Step Onboarding Sequence -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left pt-1 sm:pt-2">
-                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface,#FFFFFF)] border border-[var(--genesis-border,#E8E8EC)] shadow-sm">
+                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] shadow-sm">
                             <span class="inline-block text-xs font-mono font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mb-1">1. เพิ่มเพลง</span>
-                            <p class="text-sm font-semibold text-[var(--genesis-text-primary,#0A0A0A)]">ค้นหา / วางลิงก์</p>
-                            <p class="text-xs text-[var(--genesis-text-secondary,#6B6B6B)] mt-1 leading-relaxed">พิมพ์ชื่อเพลง หรือวางลิงก์ YouTube/Spotify ที่ช่องด้านขวา</p>
+                            <p class="text-sm font-semibold text-[var(--genesis-text-primary)]">ค้นหา / วางลิงก์</p>
+                            <p class="text-xs text-[var(--genesis-text-secondary)] mt-1 leading-relaxed">พิมพ์ชื่อเพลง หรือวางลิงก์ YouTube/Spotify ที่ช่องด้านขวา</p>
                         </div>
-                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface,#FFFFFF)] border border-[var(--genesis-border,#E8E8EC)] shadow-sm">
+                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] shadow-sm">
                             <span class="inline-block text-xs font-mono font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mb-1">2. ชวนเพื่อน</span>
-                            <p class="text-sm font-semibold text-[var(--genesis-text-primary,#0A0A0A)]">สแกน QR Code</p>
-                            <p class="text-xs text-[var(--genesis-text-secondary,#6B6B6B)] mt-1 leading-relaxed">ให้เพื่อนสแกนเพื่อช่วยกันต่อคิวและโหวตเพลงจากมือถือ</p>
+                            <p class="text-sm font-semibold text-[var(--genesis-text-primary)]">สแกน QR Code</p>
+                            <p class="text-xs text-[var(--genesis-text-secondary)] mt-1 leading-relaxed">ให้เพื่อนสแกนเพื่อช่วยกันต่อคิวและโหวตเพลงจากมือถือ</p>
                         </div>
-                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface,#FFFFFF)] border border-[var(--genesis-border,#E8E8EC)] shadow-sm">
+                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] shadow-sm">
                             <span class="inline-block text-xs font-mono font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mb-1">3. เริ่มปาร์ตี้</span>
-                            <p class="text-sm font-semibold text-[var(--genesis-text-primary,#0A0A0A)]">สนุกต่อเนื่อง</p>
-                            <p class="text-xs text-[var(--genesis-text-secondary,#6B6B6B)] mt-1 leading-relaxed">เปิดคาราโอเกะ ตัดเสียงร้อง และมี Auto-DJ เมื่อคิวหมด</p>
+                            <p class="text-sm font-semibold text-[var(--genesis-text-primary)]">สนุกต่อเนื่อง</p>
+                            <p class="text-xs text-[var(--genesis-text-secondary)] mt-1 leading-relaxed">เปิดคาราโอเกะ ตัดเสียงร้อง และมี Auto-DJ เมื่อคิวหมด</p>
                         </div>
                     </div>
 
@@ -1934,7 +1938,7 @@
                             <i class="fa-solid fa-plus text-xs"></i>
                             <span>1. เริ่มค้นหาเพลง</span>
                         </button>
-                        <button type="button" onclick="document.getElementById('header-qr-btn')?.click() || document.getElementById('aside-qr-btn')?.click()" class="h-10 px-4 rounded-[8px] bg-[var(--genesis-surface,#FFFFFF)] hover:bg-[var(--genesis-surface-subtle,#F4F4F6)] text-[var(--genesis-text-primary,#0A0A0A)] border border-[var(--genesis-border,#E8E8EC)] text-xs sm:text-sm font-semibold transition flex items-center gap-2 active:scale-95 cursor-pointer">
+                        <button type="button" onclick="document.getElementById('header-qr-btn')?.click() || document.getElementById('aside-qr-btn')?.click()" class="h-10 px-4 rounded-[8px] bg-[var(--genesis-surface)] hover:bg-[var(--genesis-surface-subtle)] text-[var(--genesis-text-primary)] border border-[var(--genesis-border)] text-xs sm:text-sm font-semibold transition flex items-center gap-2 active:scale-95 cursor-pointer">
                             <i class="fa-solid fa-qrcode text-indigo-500 text-xs"></i>
                             <span>2. เปิด QR ชวนเพื่อน</span>
                         </button>
@@ -1944,21 +1948,21 @@
 
             <!-- Cinematic Fade Lyric Spotlight Banner (Triggered by '🚀 แสดงขึ้นจอ') -->
             <div id="lyric-spotlight-banner" class="absolute top-14 left-4 right-4 z-40 flex flex-col items-center text-center pointer-events-none">
-                <div class="bg-black/30 backdrop-blur-md border border-brand-peri/35 rounded-2xl px-5 py-2.5 shadow-[0_12px_40px_rgba(171,210,250,0.22)] max-w-xl">
-                    <p id="lyric-spotlight-user" class="text-[10px] text-brand-peri/90 font-semibold tracking-wide mb-0.5">🎤 เนื้อเพลงขึ้นจอ</p>
-                    <p id="lyric-spotlight-text" class="text-base sm:text-xl md:text-2xl font-extrabold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] leading-snug">♪ • • • ♪</p>
+                <div class="bg-black/30 backdrop-blur-md border border-brand-peri/35 rounded-2xl px-5 py-2.5 shadow-xl shadow-cyan-500/10 max-w-xl">
+                    <p id="lyric-spotlight-user" class="text-[10px] text-brand-peri/90 font-semibold tracking-wide mb-0.5"><span class="fa-solid fa-microphone mr-1 text-cyan-400"></span>เนื้อเพลงขึ้นจอ</p>
+                    <p id="lyric-spotlight-text" class="text-base sm:text-xl md:text-2xl font-extrabold text-white drop-shadow-md leading-snug">♪ ♪ ♪</p>
                 </div>
             </div>
 
             <!-- Synced Karaoke Lyrics Floating Overlay on Video Player (Ultra-Transparent Glass, Smooth Fade In/Out) -->
             <div id="lyrics-overlay" class="absolute bottom-11 left-3 right-3 sm:left-10 sm:right-10 z-40 flex flex-col items-center text-center group">
-                <div class="relative bg-black/20 hover:bg-black/35 backdrop-blur-[3px] border border-white/10 hover:border-white/20 rounded-2xl px-4 pt-2 pb-2 max-w-2xl w-full shadow-[0_8px_32px_rgba(0,0,0,0.35)] pointer-events-auto transition-all duration-500">
+                <div class="relative bg-black/20 hover:bg-black/35 backdrop-blur-[3px] border border-white/10 hover:border-white/20 rounded-2xl px-4 pt-2 pb-2 max-w-2xl w-full shadow-lg shadow-black/40 pointer-events-auto transition-colors duration-200 duration-500">
                     <!-- Top Floating Action Bar (Smoothly fades in with lyrics panel) -->
                     <div class="flex items-center justify-between gap-2 mb-1 min-h-[20px]">
                         <div class="flex items-center gap-1.5">
-                            <span id="lyrics-karaoke-pill" class="hidden text-[9px] px-2 py-0.5 rounded-full bg-pink-500/25 text-pink-200 border border-pink-400/40 font-semibold backdrop-blur-sm">🎤 คาราโอเกะ</span>
+                            <span id="lyrics-karaoke-pill" class="hidden text-[9px] px-2 py-0.5 rounded-full bg-pink-500/25 text-pink-200 border border-pink-400/40 font-semibold backdrop-blur-sm"><span class="fa-solid fa-microphone mr-1"></span>คาราโอเกะ</span>
                             <span id="lyrics-countdown-pill" class="hidden text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/25 text-amber-200 border border-amber-400/45 font-semibold backdrop-blur-sm">
-                                🎤 เตรียมร้อง 3...
+                                เตรียมร้อง 3...
                             </span>
                         </div>
 
@@ -1970,7 +1974,7 @@
                             </div>
                             <span class="w-[1px] h-3 bg-white/15"></span>
                             <button id="btn-lyrics-send-danmaku" type="button" class="text-[9px] bg-brand-peri/20 hover:bg-brand-peri/40 text-brand-peri hover:text-white border border-brand-peri/35 rounded-full px-2 py-0.5 font-semibold transition flex items-center gap-1 active:scale-95" title="ส่งท่อนที่กำลังร้องแสดงขึ้นจอกลางแบบ Fade สวยๆ">
-                                🚀 <span>แสดงขึ้นจอ</span>
+                                <i class="fa-solid fa-rocket mr-1 text-cyan-400"></i><span>แสดงขึ้นจอ</span>
                             </button>
                             <button id="btn-lyrics-cinema" type="button" class="text-[9px] text-brand-light/75 hover:text-brand-peri px-1 transition" title="ขยาย/ย่อ โหมดเนื้อเพลงเต็มตา (Cinema Mode)">
                                 <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
@@ -1984,9 +1988,9 @@
                     <!-- Stage: Smooth Vertical Scrolling Reel -->
                     <div id="lyrics-stage" class="relative overflow-hidden py-0.5">
                         <div id="lyrics-fallback-stage" class="hidden space-y-0.5">
-                            <p id="lyrics-line-prev" class="text-[11px] sm:text-xs text-brand-light/45 truncate transition-all duration-300 min-h-[1rem]">—</p>
-                            <p id="lyrics-line-active" class="text-sm sm:text-lg md:text-xl font-bold text-white transition-all duration-300 my-0.5 leading-snug"></p>
-                            <p id="lyrics-line-next" class="text-[11px] sm:text-xs text-brand-light/55 truncate transition-all duration-300 min-h-[1rem]">—</p>
+                            <p id="lyrics-line-prev" class="text-[11px] sm:text-xs text-brand-light/45 truncate transition-colors duration-200 duration-300 min-h-[1rem]">...</p>
+                            <p id="lyrics-line-active" class="text-sm sm:text-lg md:text-xl font-bold text-white transition-colors duration-200 duration-300 my-0.5 leading-snug"></p>
+                            <p id="lyrics-line-next" class="text-[11px] sm:text-xs text-brand-light/55 truncate transition-colors duration-200 duration-300 min-h-[1rem]">...</p>
                         </div>
                         <div id="lyrics-reel-viewport">
                             <div id="lyrics-reel-track" class="relative flex flex-col items-center"></div>
@@ -1994,13 +1998,13 @@
                     </div>
 
                     <div class="w-36 max-w-[55%] mx-auto h-[2px] bg-white/10 rounded-full overflow-hidden mt-1">
-                        <div id="lyrics-line-progress" class="h-full bg-gradient-to-r from-brand-deep via-brand-peri to-sky-300 rounded-full transition-all duration-100" style="width: 0%"></div>
+                        <div id="lyrics-line-progress" class="h-full bg-gradient-to-r from-brand-deep via-brand-peri to-sky-300 rounded-full transition-colors duration-200 duration-100" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Floating Restore Pill when Lyrics Exist but Overlay is Hidden (Smooth Fade In/Out) -->
-            <button id="lyrics-restore-pill" type="button" class="absolute bottom-11 left-1/2 -translate-x-1/2 z-40 bg-black/35 hover:bg-brand-peri/25 backdrop-blur-md border border-brand-peri/40 hover:border-brand-peri text-brand-light hover:text-white rounded-full px-3.5 py-1.5 text-[11px] font-semibold shadow-[0_8px_24px_rgba(0,0,0,0.45)] flex items-center gap-1.5 active:scale-95 idle-autofade" title="คลิกเพื่อ Fade แผงเนื้อเพลงกลับขึ้นมาแสดงบนจอ">
+            <button id="lyrics-restore-pill" type="button" class="absolute bottom-11 left-1/2 -translate-x-1/2 z-40 bg-black/35 hover:bg-brand-peri/25 backdrop-blur-md border border-brand-peri/40 hover:border-brand-peri text-brand-light hover:text-white rounded-full px-3.5 py-1.5 text-[11px] font-semibold shadow-lg shadow-black/50 flex items-center gap-1.5 active:scale-95 idle-autofade" title="คลิกเพื่อ Fade แผงเนื้อเพลงกลับขึ้นมาแสดงบนจอ">
                 <i class="fa-solid fa-wand-magic-sparkles text-brand-peri text-[10px]"></i>
                 <span>แสดงเนื้อเพลงขึ้นจอ</span>
             </button>
@@ -2012,7 +2016,7 @@
                 <button id="player-lyrics-btn" class="bg-black/70 backdrop-blur-md hover:bg-white/10 px-3 py-1.5 rounded-full text-slate-300 hover:text-cyan-300 text-[11px] border border-white/10 hover:border-cyan-400/40 transition flex items-center gap-1.5 shadow-sm active:scale-95" title="แสดง/ซ่อน เนื้อเพลงบนจอวิดีโอ (Smooth Fade)">
                     <i class="fa-solid fa-microphone-lines text-cyan-400"></i> <span id="player-lyrics-btn-label" class="hidden sm:inline font-medium">แสดงขึ้นจอ</span>
                 </button>
-                <span id="player-quality-badge" class="bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-cyan-400 font-mono font-bold text-[10px] border border-cyan-400/30 tracking-wider shadow-sm">
+                <span id="player-quality-badge" class="bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-cyan-400 font-bold text-[10px] border border-cyan-400/30 shadow-sm">
                     HD
                 </span>
                 <button id="theater-btn" class="w-8 h-8 rounded-full bg-black/70 backdrop-blur-md hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 hover:border-cyan-400/40 flex items-center justify-center text-xs transition shadow-sm active:scale-95" title="เต็มจอเว็บ (Theater Mode)">
@@ -2025,7 +2029,7 @@
 
             <!-- Player status badge -->
             <div id="host-badge" class="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-cyan-400 border border-cyan-400/30 z-20 flex items-center gap-1.5 shadow-sm idle-autofade">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,229,255,0.8)]"></span> HOST MODE
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span> HOST MODE
             </div>
             <!-- Player Quick QR Pill -->
             <button id="player-qr-badge" type="button" class="absolute bottom-3 left-28 bg-black/70 hover:bg-cyan-950/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-cyan-300 border border-cyan-400/30 hover:border-cyan-400/70 z-20 flex items-center gap-1.5 shadow-sm transition active:scale-95 idle-autofade cursor-pointer" title="เปิด QR Code ปาร์ตี้เต็มจอ">
@@ -2035,11 +2039,11 @@
         </section>
 
         <!-- Weather Radar & GPS Navigation Panel (Cross-Fades In Place of Control Panel) -->
-        <section id="radar-nav-panel" class="hidden flex-col bg-[#000000] border-l border-white/[0.07] overflow-hidden shrink-0 z-25">
+        <section id="radar-nav-panel" class="hidden flex-col bg-black border-l border-white/[0.07] overflow-hidden shrink-0 z-25">
             <!-- Top Bar -->
             <div class="px-3.5 py-2.5 bg-black/95 border-b border-white/[0.07] flex items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center gap-2 min-w-0">
-                    <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,229,255,0.7)] shrink-0"></span>
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50 shrink-0"></span>
                     <h2 class="text-xs font-bold text-white truncate">เรดาร์สภาพอากาศ & GPS นำทาง</h2>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
@@ -2062,7 +2066,7 @@
             </div>
 
             <!-- Weather Analysis Card -->
-            <div id="weather-analysis-card" class="p-3 bg-gradient-to-r from-black via-[#080808] to-black border-b border-white/[0.06] shrink-0 space-y-2">
+            <div id="weather-analysis-card" class="p-3 bg-black border-b border-white/[0.06] shrink-0 space-y-2">
                 <div class="flex items-center justify-between gap-2">
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-1.5 text-[10px] text-cyan-300">
@@ -2099,7 +2103,7 @@
                 <!-- Route Weather Ahead (3-Point Forecast: Origin ➔ Midpoint 50% ➔ Destination 100%) -->
                 <div id="route-weather-ahead-card" class="hidden pt-1.5 border-t border-brand-deep/40 space-y-1.5 animate-fade-in-up">
                     <div class="flex items-center justify-between gap-1">
-                        <span class="text-[9px] font-semibold uppercase tracking-wider text-sky-300 flex items-center gap-1">
+                        <span class="text-[9px] font-semibold font-medium text-sky-300 flex items-center gap-1">
                             <i class="fa-solid fa-cloud-sun-rain"></i> พยากรณ์อากาศล่วงหน้าตลอดเส้นทาง
                         </span>
                         <span id="route-weather-summary-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-300 border border-emerald-500/30 font-medium">ตลอดสายอากาศปลอดโปร่ง</span>
@@ -2111,11 +2115,11 @@
             </div>
 
             <!-- GPS Navigation Controls (3 States: Input -> Preview -> Active Navigation) -->
-            <div id="nav-controls-wrapper" class="p-2.5 bg-[#080c14] border-b border-brand-deep/40 shrink-0 space-y-2">
+            <div id="nav-controls-wrapper" class="p-2.5 bg-slate-950 border-b border-brand-deep/40 shrink-0 space-y-2">
                 <!-- State 1: Input Route Link -->
                 <div id="nav-step-input" class="space-y-1.5">
                     <div class="flex items-center justify-between">
-                        <label class="text-[10px] text-brand-peri font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <label class="text-[10px] text-brand-peri font-semibold font-medium flex items-center gap-1">
                             <i class="fa-solid fa-diamond-turn-right"></i> ระบบ GPS นำทาง (ซิงค์ทุกคน)
                         </label>
                         <span class="text-[9px] text-brand-light/50">วางลิงก์ Google Maps หรือคลิกจุดหมายบนแผนที่</span>
@@ -2131,11 +2135,11 @@
 
                 <!-- State 2: Route Preview Confirmation ("โชว์เส้นทางว่าถูกต้องมั้ย จะมีปุ่ม เริ่ม กับยกเลิก") -->
                 <div id="nav-step-preview" class="hidden space-y-2 animate-fade-in-up">
-                    <div class="bg-[#0d1624] border border-brand-peri/40 rounded-lg p-2.5 space-y-1.5">
+                    <div class="bg-slate-900 border border-brand-peri/40 rounded-lg p-2.5 space-y-1.5">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
-                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-brand-peri/20 text-brand-peri font-semibold uppercase">ตรวจสอบเส้นทางว่าถูกต้องหรือไม่?</span>
-                                <h3 id="preview-dest-name" class="text-xs font-semibold text-white truncate mt-1">—</h3>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-brand-peri/20 text-brand-peri font-semibold">ตรวจสอบเส้นทางว่าถูกต้องหรือไม่?</span>
+                                <h3 id="preview-dest-name" class="text-xs font-semibold text-white truncate mt-1">...</h3>
                                 <p id="preview-route-summary" class="text-[10px] text-brand-light/70 truncate">เส้นทางหลักตามถนน</p>
                             </div>
                             <div class="text-right shrink-0">
@@ -2156,7 +2160,7 @@
 
                 <!-- State 3: Active Navigation ("ขอพิกัดเป็นพักๆ และโชว์ว่าเหลืออีกกี่นาที เส้นทางเป็นไง") -->
                 <div id="nav-step-active" class="hidden space-y-2 animate-fade-in-up">
-                    <div class="bg-gradient-to-r from-emerald-950/70 via-[#0d1824] to-[#0a121c] border border-emerald-500/40 rounded-lg p-2.5 space-y-1.5">
+                    <div class="bg-slate-950 border border-emerald-500/40 rounded-lg p-2.5 space-y-1.5">
                         <div class="flex items-center justify-between gap-2">
                             <div class="flex items-center gap-2 min-w-0">
                                 <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-300 shrink-0">
@@ -2165,7 +2169,7 @@
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
-                                        <span class="text-[9px] text-emerald-300 font-semibold uppercase tracking-wider">กำลังนำทางสด (ซิงค์อัตโนมัติ)</span>
+                                        <span class="text-[9px] text-emerald-300 font-semibold font-medium">กำลังนำทางสด (ซิงค์อัตโนมัติ)</span>
                                     </div>
                                     <p id="nav-next-instruction" class="text-xs font-semibold text-white truncate">กำลังคำนวณทิศทาง...</p>
                                     <p id="nav-road-status" class="text-[10px] text-brand-light/75 truncate">สภาพเส้นทางปกติ</p>
@@ -2185,7 +2189,7 @@
                                 <span id="nav-progress-pct" class="font-mono font-semibold text-emerald-300">0%</span>
                             </div>
                             <div class="w-full h-1.5 bg-black/60 rounded-full overflow-hidden border border-emerald-500/20">
-                                <div id="nav-progress-fill" class="h-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+                                <div id="nav-progress-fill" class="h-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-colors duration-200 duration-500" style="width: 0%"></div>
                             </div>
                         </div>
 
@@ -2208,14 +2212,14 @@
             </div>
 
             <!-- Interactive Map + Live Weather Radar Viewport -->
-            <div class="relative flex-1 min-h-[220px] bg-[#05080d] overflow-hidden">
+            <div class="relative flex-1 min-h-[220px] bg-slate-950 overflow-hidden">
                 <!-- 10-Second Auto Radar Showcase Floating Banner -->
-                <div id="radar-showcase-banner" class="hidden absolute top-2.5 left-2.5 right-12 z-[450] bg-gradient-to-r from-sky-950/95 via-[#0a1628]/95 to-emerald-950/95 backdrop-blur-md border border-sky-400/50 rounded-xl px-2.5 pt-1.5 pb-2 overflow-hidden shadow-2xl animate-fade-in-up">
+                <div id="radar-showcase-banner" class="hidden absolute top-2.5 left-2.5 right-12 z-[450] bg-gradient-to-r from-sky-950/95 via-slate-950/95 to-emerald-950/95 backdrop-blur-md border border-sky-400/50 rounded-xl px-2.5 pt-1.5 pb-2 overflow-hidden shadow-2xl animate-fade-in-up">
                     <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-2 min-w-0">
                             <span class="w-2 h-2 rounded-full bg-sky-400 shrink-0"></span>
                             <div class="min-w-0">
-                                <p id="showcase-title" class="text-[10px] font-semibold text-white truncate">📡 แสดงแผนที่ & เรดาร์สภาพอากาศ</p>
+                                <p id="showcase-title" class="text-[10px] font-semibold text-white truncate"><span class="fa-solid fa-satellite-dish mr-1 text-cyan-400"></span>แสดงแผนที่ & เรดาร์สภาพอากาศ</p>
                                 <p id="showcase-sub-info" class="text-[9px] text-sky-300 truncate">สลับกลับไปแผงควบคุมใน <strong id="showcase-countdown" class="text-emerald-300 font-mono">10</strong> วินาที</p>
                             </div>
                         </div>
@@ -2230,7 +2234,7 @@
                 </div>
 
                 <!-- Weather Alert Country-to-User Zoom Stage HUD -->
-                <div id="radar-zoom-stage-badge" class="hidden absolute bottom-12 left-1/2 -translate-x-1/2 z-[440] bg-[#081326]/95 backdrop-blur-md border border-sky-400/60 text-sky-200 rounded-full px-3 py-1 text-[10px] font-medium shadow-xl flex items-center gap-1.5 pointer-events-none whitespace-nowrap transition-all duration-300">
+                <div id="radar-zoom-stage-badge" class="hidden absolute bottom-12 left-1/2 -translate-x-1/2 z-[440] bg-slate-950/95 backdrop-blur-md border border-sky-400/60 text-sky-200 rounded-full px-3 py-1 text-[10px] font-medium shadow-xl flex items-center gap-1.5 pointer-events-none whitespace-nowrap transition-colors duration-200 duration-300">
                     <i id="radar-zoom-stage-icon" class="fa-solid fa-earth-asia text-sky-400 animate-pulse"></i>
                     <span id="radar-zoom-stage-text">กำลังสแกนเรดาร์ระดับประเทศ...</span>
                 </div>
@@ -2242,7 +2246,7 @@
                 <iframe id="windy-radar-iframe" class="absolute inset-0 w-full h-full hidden border-0 z-10" allowfullscreen></iframe>
 
                 <!-- Floating Radar Timeline Control Bar (for Map + Radar mode) -->
-                <div id="radar-timeline-bar" class="absolute bottom-2.5 left-2.5 right-2.5 z-[400] bg-[#0a0f18]/90 backdrop-blur border border-brand-deep/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] shadow-xl">
+                <div id="radar-timeline-bar" class="absolute bottom-2.5 left-2.5 right-2.5 z-[400] bg-slate-950/90 backdrop-blur border border-brand-deep/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] shadow-xl">
                     <div class="flex items-center gap-1.5">
                         <button id="radar-play-btn" class="w-6 h-6 rounded bg-sky-500/20 hover:bg-sky-500/40 text-sky-300 border border-sky-400/30 flex items-center justify-center transition" title="เล่น/หยุด อนิเมชันเรดาร์เมฆฝน">
                             <i id="radar-play-icon" class="fa-solid fa-pause text-[9px]"></i>
@@ -2266,13 +2270,13 @@
         </section>
 
         <!-- Right Panel (380px fixed on desktop per DESIGN.md) -->
-        <aside class="relative w-full md:w-[380px] md:flex-none flex-1 min-h-0 bg-[#000000] flex flex-col overflow-hidden shrink-0 border-l border-white/[0.07] transition-all duration-300">
+        <aside class="relative w-full md:w-[380px] md:flex-none flex-1 min-h-0 bg-black flex flex-col overflow-hidden shrink-0 border-l border-white/[0.07] transition-colors duration-200 duration-300">
             
             <!-- Mode Toggle & Profile -->
             <div class="p-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                 <label class="flex items-center gap-2.5 cursor-pointer select-none">
                     <input type="checkbox" id="toggle-host" checked class="sr-only peer">
-                    <div class="w-9 h-5 bg-white/[0.08] border border-white/[0.12] rounded-full peer-checked:bg-cyan-400 peer-checked:border-cyan-300 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-3.5 after:h-3.5 after:bg-white peer-checked:after:bg-black after:rounded-full after:transition-all peer-checked:after:translate-x-[16px] shadow-inner transition-colors"></div>
+                    <div class="w-9 h-5 bg-white/[0.08] border border-white/[0.12] rounded-full peer-checked:bg-cyan-400 peer-checked:border-cyan-300 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-3.5 after:h-3.5 after:bg-white peer-checked:after:bg-black after:rounded-full after:transition-transform duration-200 peer-checked:after:translate-x-[16px] shadow-inner transition-colors"></div>
                     <span class="text-xs font-semibold text-slate-300 peer-checked:text-white transition-colors">Host Mode</span>
                 </label>
                 <div class="flex items-center gap-1.5 sm:gap-2">
@@ -2281,11 +2285,11 @@
                         <span class="hidden sm:inline">QR</span>
                     </button>
                     <div id="my-avatar-chip" class="relative cursor-pointer group flex items-center" title="คลิกเพื่อแก้ไขรูปโปรไฟล์ & การตั้งค่า">
-                        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-cyan-400/50 hover:border-cyan-400 shadow-[0_0_10px_rgba(0,229,255,0.35)] bg-white/5 flex items-center justify-center transition-transform hover:scale-105 active:scale-95">
-                            <img id="my-avatar-img" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-cyan-400/50 hover:border-cyan-400 shadow-md shadow-cyan-500/30 bg-white/5 flex items-center justify-center transition-transform hover:scale-105 active:scale-95">
+                            <img id="my-avatar-img" src="/PNRJAPANLOGO.png" alt="Avatar" class="w-full h-full object-cover hidden">
                             <span id="my-avatar-initial" class="text-xs font-bold text-cyan-300">U</span>
                         </div>
-                        <div id="my-color-dot" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-black shadow-[0_0_6px_rgba(0,229,255,0.8)]"></div>
+                        <div id="my-color-dot" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-black shadow-sm shadow-cyan-400/50"></div>
                     </div>
                     <button id="edit-profile-btn" class="text-[11px] px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white transition flex items-center gap-1.5 active:scale-95">
                         <i class="fa-solid fa-gear text-cyan-400 text-[10px]"></i> <span>ตั้งค่า</span>
@@ -2304,7 +2308,7 @@
             </div>
 
             <!-- Mobile Sticky Mini-Player (Shows on Tab 2 'queue' and Tab 3 'party' when track is playing) -->
-            <div id="mobile-sticky-miniplayer" class="hidden md:hidden sticky top-0 z-30 bg-[#0a0e17]/95 backdrop-blur-xl border-b border-cyan-500/25 px-3 py-2 flex items-center gap-2.5 shadow-xl transition-all cursor-pointer">
+            <div id="mobile-sticky-miniplayer" class="hidden md:hidden sticky top-0 z-30 bg-slate-950/95 backdrop-blur-xl border-b border-cyan-500/25 px-3 py-2 flex items-center gap-2.5 shadow-xl transition-colors duration-200 cursor-pointer">
                 <div class="relative w-10 h-10 rounded-lg overflow-hidden bg-black/60 border border-cyan-500/30 shrink-0">
                     <img id="mini-thumb" src="/PNRJAPANLOGO.png" alt="Mini artwork" class="w-full h-full object-cover">
                 </div>
@@ -2313,9 +2317,9 @@
                         <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
                         <p id="mini-title" class="text-xs font-bold text-white truncate">ยังไม่มีเพลง</p>
                     </div>
-                    <p id="mini-author" class="text-[10px] text-slate-400 truncate mt-0.5">—</p>
+                    <p id="mini-author" class="text-[10px] text-slate-400 truncate mt-0.5">...</p>
                     <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1">
-                        <div id="mini-progress-fill" class="h-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all duration-300" style="width: 0%"></div>
+                        <div id="mini-progress-fill" class="h-full bg-cyan-500 transition-colors duration-200" style="width: 0%"></div>
                     </div>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0" onclick="event.stopPropagation()">
@@ -2332,21 +2336,21 @@
                 <div id="sec-ctrl" class=" md:block space-y-3">
 
                     <!-- Search & Add Song Bar (Vibrant Cyber Pill) -->
-                    <div id="add-queue-card" class="glass-panel rounded-2xl p-2.5 transition-all duration-300 border border-cyan-500/25 hover:border-cyan-400/50 focus-within:border-cyan-400 focus-within:shadow-[0_0_20px_rgba(0,229,255,0.25)]">
+                    <div id="add-queue-card" class="glass-panel rounded-2xl p-2.5 transition-colors duration-200 duration-300 border border-cyan-500/25 hover:border-cyan-400/50 focus-within:border-cyan-400 focus-within:shadow-lg shadow-cyan-500/25">
                         <div class="relative flex items-center">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-cyan-400/70 text-xs pointer-events-none"></i>
-                            <input id="url-input" type="text" placeholder="ค้นหาเพลง หรือ วางลิงก์ YouTube / Spotify..." class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-cyan-400/60 rounded-full pl-9 pr-10 py-2 text-xs text-white placeholder-slate-400 focus:outline-none transition-all">
-                            <button id="add-btn" class="absolute right-1.5 w-7 h-7 bg-gradient-to-tr from-[#00E5FF] to-[#38BDF8] hover:brightness-110 text-black rounded-full flex items-center justify-center text-xs font-bold transition active:scale-90 shadow-[0_0_12px_rgba(0,229,255,0.4)]" title="เพิ่มเพลงเข้าคิว">
+                            <input id="url-input" type="text" placeholder="ค้นหาเพลง หรือ วางลิงก์ YouTube / Spotify..." class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-cyan-400/60 rounded-full pl-9 pr-10 py-2 text-xs text-white placeholder-slate-400 focus:outline-none transition-colors duration-200">
+                            <button id="add-btn" class="absolute right-1.5 w-7 h-7 bg-cyan-500 hover:bg-cyan-400 text-black rounded-full flex items-center justify-center text-xs font-bold transition active:scale-90 shadow-md shadow-cyan-500/30" title="เพิ่มเพลงเข้าคิว">
                                 <i id="add-btn-icon" class="fa-solid fa-plus text-xs"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Now Playing + Controls (Luxury Cyber Cockpit) -->
-                    <div id="now-playing-card" class="glass-panel relative overflow-hidden rounded-2xl p-4 transition-all duration-500 border border-cyan-500/20 hover:border-cyan-400/40 shadow-[0_12px_36px_rgba(0,0,0,0.9),0_0_24px_rgba(0,229,255,0.06)]">
+                    <div id="now-playing-card" class="glass-panel relative overflow-hidden rounded-2xl p-4 transition-colors duration-200 duration-500 border border-cyan-500/20 hover:border-cyan-400/40 shadow-2xl shadow-black/90">
                         <!-- Ambient Blurred Cover Background -->
-                        <div id="now-ambient-bg" class="absolute inset-0 bg-cover bg-center opacity-0 blur-3xl scale-150 transition-all duration-1000 pointer-events-none"></div>
-                        <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/85 to-[#05080e]/95 pointer-events-none"></div>
+                        <div id="now-ambient-bg" class="absolute inset-0 bg-cover bg-center opacity-0 blur-3xl scale-150 transition-colors duration-200 duration-1000 pointer-events-none"></div>
+                        <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/85 to-black/95 pointer-events-none"></div>
 
                         <!-- Content Wrapper -->
                         <div class="relative z-10 space-y-3.5">
@@ -2354,7 +2358,7 @@
                             <div id="now-info-wrap" class="flex items-center gap-3">
                                 <div id="now-thumb-box" class="relative w-24 h-14 rounded-xl overflow-hidden bg-black/60 border border-cyan-500/30 shrink-0 shadow-lg shadow-black/80 group">
                                     <img id="now-thumb" src="/PNRJAPANLOGO.png" alt="Now playing artwork" class="w-full h-full object-cover thumb-img group-hover:scale-105 transition-transform duration-500 hidden">
-                                    <div id="now-thumb-empty" class="absolute inset-0 flex items-center justify-center bg-[#070b12] transition-opacity duration-500">
+                                    <div id="now-thumb-empty" class="absolute inset-0 flex items-center justify-center bg-slate-950 transition-opacity duration-500">
                                         <i class="fa-solid fa-compact-disc text-cyan-400/30 text-xl animate-spin" style="animation-duration: 8s;"></i>
                                     </div>
                                     <div id="now-eq" class="hidden absolute bottom-1 right-1 bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded-full flex items-end gap-[2px] h-4 border border-cyan-400/40">
@@ -2366,41 +2370,41 @@
                                 <div id="now-text-box" class="flex-1 min-w-0 text-left">
                                     <div class="flex items-center justify-between gap-1.5 mb-1">
                                         <div class="flex items-center gap-1.5 shrink-0">
-                                            <span id="now-live-dot" class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,229,255,0.8)] animate-pulse transition-colors duration-300"></span>
-                                            <span class="text-[9px] bg-gradient-to-r from-cyan-400 to-sky-300 bg-clip-text text-transparent uppercase tracking-widest font-extrabold">กำลังเล่น</span>
+                                            <span id="now-live-dot" class="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50 animate-pulse transition-colors duration-300"></span>
+                                            <span class="text-[9px] text-cyan-400 font-extrabold">กำลังเล่น</span>
                                         </div>
                                         <span id="now-added-by" class="hidden text-[9px] bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-full text-slate-300 truncate max-w-[130px]"></span>
                                     </div>
                                     <h4 id="now-title" class="text-xs sm:text-[13px] font-bold text-white truncate leading-snug">ยังไม่มีเพลง</h4>
-                                    <p id="now-author" class="text-[11px] text-slate-400 truncate mt-0.5">—</p>
+                                    <p id="now-author" class="text-[11px] text-slate-400 truncate mt-0.5">...</p>
                                 </div>
                             </div>
 
                             <!-- Progress -->
                             <div class="pt-1">
-                                <div id="progress-bar" class="w-full h-1.5 bg-[var(--genesis-surface-subtle,#F4F4F6)] hover:h-2 rounded-full cursor-pointer overflow-hidden transition-all duration-200 border border-[var(--genesis-border,#E8E8EC)]">
-                                    <div id="progress-fill" class="h-full bg-indigo-600 rounded-full transition-all duration-300" style="width:0%"></div>
+                                <div id="progress-bar" role="slider" tabindex="0" aria-label="แถบแสดงและเลื่อนเวลาเล่นเพลง" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="w-full h-1.5 bg-[var(--genesis-surface-subtle)] hover:h-2 rounded-full cursor-pointer overflow-hidden transition-colors duration-200 border border-[var(--genesis-border)]" title="คลิกหรือลากเพื่อเลื่อนเวลาเล่น">
+                                    <div id="progress-fill" class="h-full bg-indigo-600 rounded-full" style="width:0%"></div>
                                 </div>
-                                <div class="flex justify-between items-center text-[10px] mt-1.5 font-mono text-[var(--genesis-text-muted,#9C9C9C)]">
-                                    <span id="time-now" class="tabular-nums font-semibold text-[var(--genesis-text-primary,#0A0A0A)]">0:00</span>
-                                    <span id="time-total" class="tabular-nums font-medium text-[var(--genesis-text-secondary,#6B6B6B)]">0:00</span>
+                                <div class="flex justify-between items-center text-[10px] mt-1.5 font-mono text-[var(--genesis-text-muted)]">
+                                    <span id="time-now" class="tabular-nums font-semibold text-[var(--genesis-text-primary)]">0:00</span>
+                                    <span id="time-total" class="tabular-nums font-medium text-[var(--genesis-text-secondary)]">0:00</span>
                                 </div>
                             </div>
 
                             <!-- Volume -->
                             <div class="flex items-center gap-2 pt-0.5">
-                                <button id="vol-down" class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-[10px] bg-[var(--genesis-surface-subtle,#F4F4F6)] hover:bg-[var(--genesis-surface,#FFFFFF)] text-[var(--genesis-text-secondary,#6B6B6B)] hover:text-[var(--genesis-text-primary,#0A0A0A)] border border-[var(--genesis-border,#E8E8EC)] transition flex items-center justify-center text-sm active:scale-95 cursor-pointer" title="ลดเสียง" aria-label="ลดระดับเสียง">
+                                <button id="vol-down" class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-[10px] bg-[var(--genesis-surface-subtle)] hover:bg-[var(--genesis-surface)] text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] border border-[var(--genesis-border)] transition flex items-center justify-center text-sm active:scale-95 cursor-pointer" title="ลดเสียง" aria-label="ลดระดับเสียง">
                                     <i class="fa-solid fa-volume-low"></i>
                                 </button>
                                 <input id="vol-slider" type="range" min="0" max="100" value="50" class="flex-1 cursor-pointer" aria-label="ระดับความดังเสียง">
-                                <button id="vol-up" class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-[10px] bg-[var(--genesis-surface-subtle,#F4F4F6)] hover:bg-[var(--genesis-surface,#FFFFFF)] text-[var(--genesis-text-secondary,#6B6B6B)] hover:text-[var(--genesis-text-primary,#0A0A0A)] border border-[var(--genesis-border,#E8E8EC)] transition flex items-center justify-center text-sm active:scale-95 cursor-pointer" title="เพิ่มเสียง" aria-label="เพิ่มระดับเสียง">
+                                <button id="vol-up" class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-[10px] bg-[var(--genesis-surface-subtle)] hover:bg-[var(--genesis-surface)] text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] border border-[var(--genesis-border)] transition flex items-center justify-center text-sm active:scale-95 cursor-pointer" title="เพิ่มเสียง" aria-label="เพิ่มระดับเสียง">
                                     <i class="fa-solid fa-volume-high"></i>
                                 </button>
-                                <span id="vol-label" class="text-xs text-[var(--genesis-text-primary,#0A0A0A)] w-10 text-right font-mono font-semibold">50%</span>
+                                <span id="vol-label" class="text-xs text-[var(--genesis-text-primary)] w-10 text-right font-mono font-semibold">50%</span>
                             </div>
 
                             <!-- Transport & Playback Control Deck -->
-                            <div class="space-y-2.5 pt-2 border-t border-[var(--genesis-border,#E8E8EC)]">
+                            <div class="space-y-2.5 pt-2 border-t border-[var(--genesis-border)]">
                                 <!-- Main Transport Bar (Dominant Play & Skip) -->
                                 <div class="flex items-center justify-center gap-3 py-1">
                                     <!-- Primary Play/Pause Button (Prominent 48px circle with crisp white icon) -->
@@ -2410,41 +2414,41 @@
                                     </button>
 
                                     <!-- Universal 3-Tap Direct Skip Button (For Everyone: Host & Guests) -->
-                                    <button id="btn-skip" type="button" class="h-11 min-h-[44px] px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/[0.12] hover:border-violet-400/60 text-xs font-semibold flex items-center gap-2 transition-all duration-200 active:scale-95 shadow-sm cursor-pointer select-none group" title="กด 3 ครั้งเพื่อข้ามเพลง">
+                                    <button id="btn-skip" type="button" class="h-11 min-h-[44px] px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/[0.12] hover:border-violet-400/60 text-xs font-semibold flex items-center gap-2 transition-colors duration-200 duration-200 active:scale-95 shadow-sm cursor-pointer select-none group" title="กด 3 ครั้งเพื่อข้ามเพลง">
                                         <i class="fa-solid fa-forward-step text-violet-400 group-hover:text-violet-300 text-xs transition-colors pointer-events-none"></i>
                                         <span id="skip-label" class="text-xs font-semibold tracking-wide pointer-events-none">ข้ามเพลง</span>
                                         <div id="skip-tap-dots" class="flex items-center gap-1 ml-0.5 pointer-events-none">
-                                            <span id="skip-dot-1" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-200"></span>
-                                            <span id="skip-dot-2" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-200"></span>
-                                            <span id="skip-dot-3" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-all duration-200"></span>
+                                            <span id="skip-dot-1" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200 duration-200"></span>
+                                            <span id="skip-dot-2" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200 duration-200"></span>
+                                            <span id="skip-dot-3" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200 duration-200"></span>
                                         </div>
                                     </button>
                                 </div>
 
                                 <!-- Secondary Audio & Lyrics Tools (2-Tier Spacious Layout) -->
-                                <div class="space-y-1.5 p-2 rounded-[10px] bg-[var(--genesis-surface-subtle,#F4F4F6)] border border-[var(--genesis-border,#E8E8EC)]">
+                                <div class="space-y-1.5 p-2 rounded-[10px] bg-[var(--genesis-surface-subtle)] border border-[var(--genesis-border)]">
                                     <!-- Row 1: Feature Toggles (Equal 50/50 Grid) -->
                                     <div class="grid grid-cols-2 gap-2">
                                         <!-- Karaoke Toggle Button -->
-                                        <button id="btn-karaoke-switch" type="button" class="h-8 px-3 rounded-[6px] text-xs font-medium text-[var(--genesis-text-secondary,#6B6B6B)] hover:text-[var(--genesis-text-primary,#0A0A0A)] hover:bg-[var(--genesis-surface,#FFFFFF)] border border-[var(--genesis-border,#E8E8EC)] transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="สลับโหมดคาราโอเกะ (ตัดเสียงร้อง)">
+                                        <button id="btn-karaoke-switch" type="button" class="h-8 px-3 rounded-[6px] text-xs font-medium text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] hover:bg-[var(--genesis-surface)] border border-[var(--genesis-border)] transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="สลับโหมดคาราโอเกะ (ตัดเสียงร้อง)">
                                             <i class="fa-solid fa-microphone-lines text-xs text-pink-500"></i>
                                             <span id="btn-karaoke-label" class="truncate">คาราโอเกะ</span>
                                         </button>
 
                                         <!-- Lyrics Display Toggle Button -->
-                                        <button id="btn-toggle-lyrics" type="button" class="h-8 px-3 rounded-[6px] text-xs font-medium text-[var(--genesis-text-secondary,#6B6B6B)] hover:text-[var(--genesis-text-primary,#0A0A0A)] hover:bg-[var(--genesis-surface,#FFFFFF)] border border-[var(--genesis-border,#E8E8EC)] transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="เปิด/ปิด เนื้อเพลงบนจอ">
+                                        <button id="btn-toggle-lyrics" type="button" class="h-8 px-3 rounded-[6px] text-xs font-medium text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] hover:bg-[var(--genesis-surface)] border border-[var(--genesis-border)] transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="เปิด/ปิด เนื้อเพลงบนจอ">
                                             <i class="fa-solid fa-music text-xs text-violet-500"></i>
                                             <span id="btn-lyrics-label" class="truncate">เนื้อเพลง</span>
                                         </button>
                                     </div>
 
                                     <!-- Row 2: Stream Quality Control (Spacious and clear) -->
-                                    <div class="flex items-center justify-between px-1.5 pt-1 border-t border-[var(--genesis-border,#E8E8EC)] text-xs text-[var(--genesis-text-secondary,#6B6B6B)]">
-                                        <span class="flex items-center gap-1.5 text-[11px] font-medium text-[var(--genesis-text-secondary,#6B6B6B)]">
+                                    <div class="flex items-center justify-between px-1.5 pt-1 border-t border-[var(--genesis-border)] text-xs text-[var(--genesis-text-secondary)]">
+                                        <span class="flex items-center gap-1.5 text-[11px] font-medium text-[var(--genesis-text-secondary)]">
                                             <i class="fa-solid fa-gauge-high text-xs text-violet-500"></i>
                                             <span>ความคมชัด:</span>
                                         </span>
-                                        <select id="quality-select" class="h-7 px-2 rounded-[6px] bg-[var(--genesis-surface,#FFFFFF)] border border-[var(--genesis-border,#E8E8EC)] text-[var(--genesis-text-primary,#0A0A0A)] text-xs font-semibold cursor-pointer focus:outline-none transition shadow-sm" title="ความคมชัดวิดีโอ">
+                                        <select id="quality-select" class="h-7 px-2 rounded-[6px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] text-[var(--genesis-text-primary)] text-xs font-semibold cursor-pointer focus:outline-none transition shadow-sm" title="ความคมชัดวิดีโอ">
                                             <option value="max" selected>1080p+ Full HD</option>
                                             <option value="hd720">720p HD</option>
                                             <option value="medium">360p</option>
@@ -2457,17 +2461,17 @@
                             <!-- Synced Lyrics Auto-Scrolling Reel (Mobile Remote View) -->
                             <div id="mobile-lyrics-box" class="hidden pt-2.5 border-t border-white/10 space-y-1.5">
                                 <div class="flex items-center justify-between">
-                                    <label class="text-[10px] bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent uppercase tracking-wider font-bold flex items-center gap-1.5">
+                                    <label class="text-[10px] text-pink-400 font-bold flex items-center gap-1.5">
                                         <i class="fa-solid fa-microphone-lines text-pink-400"></i> เนื้อเพลงคาราโอเกะ
                                     </label>
                                     <button id="btn-mobile-send-lyric" type="button" class="text-[9px] bg-purple-500/20 hover:bg-purple-500/35 text-purple-300 hover:text-white border border-purple-500/40 rounded-full px-2 py-0.5 font-semibold transition flex items-center gap-1 active:scale-95" title="ส่งท่อนที่กำลังร้องขึ้นจอกลางหน้ารถ">
-                                        🚀 <span>ส่งขึ้นจอกลาง</span>
+                                        <i class="fa-solid fa-rocket mr-1 text-pink-400"></i><span>ส่งขึ้นจอกลาง</span>
                                     </button>
                                 </div>
                                 <div id="mobile-lyrics-viewport" class="h-24 overflow-hidden relative py-1 flex flex-col justify-center text-center">
-                                    <p id="mobile-lyric-prev" class="text-[10px] text-brand-light/35 truncate transition-all duration-300 min-h-[1rem]">...</p>
-                                    <p id="mobile-lyric-active" class="text-xs sm:text-sm font-bold text-white my-1 leading-snug transition-all duration-300 min-h-[1.2rem]">♪ กำลังรอเนื้อเพลง ♪</p>
-                                    <p id="mobile-lyric-next" class="text-[10px] text-brand-light/45 truncate transition-all duration-300 min-h-[1rem]">...</p>
+                                    <p id="mobile-lyric-prev" class="text-[10px] text-brand-light/35 truncate transition-colors duration-200 duration-300 min-h-[1rem]">...</p>
+                                    <p id="mobile-lyric-active" class="text-xs sm:text-sm font-bold text-white my-1 leading-snug transition-colors duration-200 duration-300 min-h-[1.2rem]">♪ กำลังรอเนื้อเพลง ♪</p>
+                                    <p id="mobile-lyric-next" class="text-[10px] text-brand-light/45 truncate transition-colors duration-200 duration-300 min-h-[1rem]">...</p>
                                 </div>
                             </div>
                         </div>
@@ -2481,21 +2485,21 @@
                             <!-- Quick 1-Click Reactions (Glanceable 5-sec) -->
                             <div class="grid grid-cols-3 gap-2.5">
                                 <button id="react-love" class="bg-white/[0.04] hover:bg-pink-500/20 border border-white/[0.08] hover:border-pink-500/40 rounded-2xl py-2.5 flex items-center justify-center text-xl transition active:scale-90" title="ชอบมาก">
-                                    <span>😍</span>
+                                    <i class="fa-solid fa-heart text-pink-400"></i>
                                 </button>
                                 <button id="react-ok" class="bg-white/[0.04] hover:bg-emerald-500/20 border border-white/[0.08] hover:border-emerald-500/40 rounded-2xl py-2.5 flex items-center justify-center text-xl transition active:scale-90" title="เพลงดี">
-                                    <span>👍</span>
+                                    <i class="fa-solid fa-thumbs-up text-cyan-400"></i>
                                 </button>
                                 <button id="react-bad" class="bg-white/[0.04] hover:bg-rose-500/20 border border-white/[0.08] hover:border-rose-500/40 rounded-2xl py-2.5 flex items-center justify-center text-xl transition active:scale-90" title="ข้ามเถอะ">
-                                    <span>👎</span>
+                                    <i class="fa-solid fa-thumbs-down text-slate-400"></i>
                                 </button>
                             </div>
                             
                             <!-- Danmaku Marquee Message & TTS -->
                             <div class="pt-2.5 border-t border-white/[0.06] space-y-2">
                                 <div class="flex gap-1.5">
-                                    <input id="msg-input" type="text" placeholder="ส่งข้อความวิ่งหน้าจอ..." class="flex-1 bg-white/[0.04] border border-cyan-500/30 rounded-full px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:shadow-[0_0_15px_rgba(0,229,255,0.25)] transition">
-                                    <button id="msg-btn" class="bg-gradient-to-r from-cyan-400 to-sky-400 hover:from-cyan-300 hover:to-sky-300 text-black px-3.5 rounded-full text-xs font-bold transition active:scale-90 flex items-center justify-center shadow-[0_0_12px_rgba(0,229,255,0.4)]" title="ส่งข้อความ">
+                                    <input id="msg-input" type="text" placeholder="ส่งข้อความวิ่งหน้าจอ..." class="flex-1 bg-white/[0.04] border border-cyan-500/30 rounded-full px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 transition">
+                                    <button id="msg-btn" class="bg-cyan-500 hover:bg-cyan-400 text-black px-3.5 rounded-full text-xs font-bold transition active:scale-90 flex items-center justify-center shadow-md shadow-cyan-500/30" title="ส่งข้อความ">
                                         <i class="fa-solid fa-paper-plane"></i>
                                     </button>
                                 </div>
@@ -2511,26 +2515,24 @@
 
                 <!-- Queue Section -->
                 <div id="sec-queue" class="hidden md:block space-y-2 flex-1">
-                    <div class="sticky top-0 z-10 bg-[var(--genesis-surface,#FFFFFF)] backdrop-blur-md py-2.5 flex items-center justify-between px-3 border-b border-[var(--genesis-border,#E8E8EC)] rounded-t-xl">
-                        <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--genesis-text-primary,#0A0A0A)]">
-                            <i class="fa-solid fa-list text-indigo-500 text-xs"></i>
+                    <div class="sticky top-0 z-10 bg-[var(--genesis-surface)] backdrop-blur-md py-2.5 flex items-center justify-between px-3 border-b border-[var(--genesis-border)] rounded-t-xl">
+                        <h3 class="text-xs font-bold font-medium flex items-center gap-1.5 text-[var(--genesis-text-primary)]"><span class="fa-solid fa-list text-indigo-500 text-xs"></span>
                             <span>คิวถัดไป</span>
-                            <span id="q-count" class="bg-[var(--genesis-surface-subtle,#F4F4F6)] border border-[var(--genesis-border,#E8E8EC)] text-[var(--genesis-text-secondary,#6B6B6B)] px-2 py-0.5 rounded-full text-[10px] font-mono">0</span>
+                            <span id="q-count" class="bg-[var(--genesis-surface-subtle)] border border-[var(--genesis-border)] text-[var(--genesis-text-secondary)] px-2 py-0.5 rounded-full text-[10px] font-mono">0</span>
                         </h3>
-                        <button id="clear-btn" type="button" class="text-[11px] text-[var(--genesis-text-secondary,#6B6B6B)] hover:text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 px-2.5 py-1 rounded-[6px] font-medium transition active:scale-95 cursor-pointer" title="ล้างคิวเพลงทั้งหมด (สามารถกู้คืนได้)">
+                        <button id="clear-btn" type="button" class="text-[11px] text-[var(--genesis-text-secondary)] hover:text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 px-2.5 py-1 rounded-[6px] font-medium transition active:scale-95 cursor-pointer" title="ล้างคิวเพลงทั้งหมด (สามารถกู้คืนได้)">
                             <i class="fa-solid fa-trash-can text-[10px] mr-1"></i>ล้างคิว
                         </button>
                     </div>
                     <div id="queue-list" class="space-y-2 pb-2">
-                        <p class="text-center text-[11px] text-[var(--genesis-text-muted,#9C9C9C)] py-4">คิวว่างเปล่า</p>
+                        <p class="text-center text-[11px] text-[var(--genesis-text-muted)] py-4">คิวว่างเปล่า</p>
                     </div>
                 </div>
 
                 <!-- Online Users Section -->
-                <div id="sec-users" class="hidden md:block space-y-2.5 pt-3 border-t border-[var(--genesis-border,#E8E8EC)]">
+                <div id="sec-users" class="hidden md:block space-y-2.5 pt-3 border-t border-[var(--genesis-border)]">
                     <div class="px-2">
-                        <h3 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-[var(--genesis-text-primary,#0A0A0A)]">
-                            <i class="fa-solid fa-users text-indigo-500 text-xs"></i>
+                        <h3 class="text-xs font-bold font-medium flex items-center gap-1.5 text-[var(--genesis-text-primary)]"><span class="fa-solid fa-users text-indigo-500 text-xs"></span>
                             <span>ผู้ใช้งานออนไลน์</span>
                         </h3>
                     </div>
@@ -2541,12 +2543,12 @@
 
                 <!-- QR Code Party Card (Host Mode Only - Sleek, Unclipped & Expandable) -->
                 <div id="qr-section-wrap" class="pt-3 border-t border-white/[0.06] flex flex-col items-center">
-                    <div id="qr-container" class="w-full max-w-[240px] bg-gradient-to-b from-[#0e1726]/90 to-[#070c16]/90 border border-cyan-400/35 hover:border-cyan-400/70 rounded-2xl p-3 flex flex-col items-center text-center shadow-[0_0_24px_rgba(0,229,255,0.14)] transition-all duration-300 hover:shadow-[0_0_36px_rgba(0,229,255,0.28)] group cursor-pointer hidden" title="แตะเพื่อขยาย QR เต็มจอ หรือ คัดลอกลิงก์">
+                    <div id="qr-container" class="w-full max-w-[240px] bg-slate-950/90 border border-cyan-400/35 hover:border-cyan-400/70 rounded-2xl p-3 flex flex-col items-center text-center shadow-lg shadow-cyan-500/20 transition-colors duration-200 duration-300 hover:shadow-cyan-500/30 group cursor-pointer hidden" title="แตะเพื่อขยาย QR เต็มจอ หรือ คัดลอกลิงก์">
                         <!-- Card Header -->
                         <div class="flex items-center justify-between w-full mb-1 px-1">
                             <div class="flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,229,255,0.8)]"></span>
-                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300">สแกนเข้าปาร์ตี้</span>
+                                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-sm shadow-cyan-400/50"></span>
+                                <span class="text-[10px] font-extrabold font-medium text-cyan-300">สแกนเข้าปาร์ตี้</span>
                             </div>
                             <span id="qr-live-guests-chip" class="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 flex items-center gap-1">
                                 <i class="fa-solid fa-users text-[8px]"></i> <span id="qr-guest-count">1</span>
@@ -2575,7 +2577,7 @@
     </main>
 
     <!-- Mobile Bottom Navigation Bar (3 Tabs for In-Car Remote Control) -->
-    <nav id="mobile-nav-bar" class="hidden md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-xl border-t border-white/[0.08] px-4 py-2 pb-3.5 items-center justify-around select-none shadow-[0_-4px_24px_rgba(0,0,0,0.8)]">
+    <nav id="mobile-nav-bar" class="hidden md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-xl border-t border-white/[0.08] px-4 py-2 pb-3.5 items-center justify-around select-none shadow-2xl shadow-black/80">
         <button type="button" id="tab-nav-now" data-mobile-tab="now" class="mobile-nav-btn flex-1 py-1 flex flex-col items-center gap-0.5 text-cyan-400 transition active:scale-95 font-bold">
             <i class="fa-solid fa-compact-disc text-base"></i>
             <span class="text-[10px] font-semibold">เพลง & ร้อง</span>

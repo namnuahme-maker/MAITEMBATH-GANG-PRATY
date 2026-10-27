@@ -1,1 +1,63 @@
-/* NAMNUAH PRATY - No external styles needed, all in index.html */
+/* Hallmark · shape: app screen · genre: atmospheric · theme: brand · redesign: full
+ * paper: oklch(14% 0.015 230) · accent: oklch(88% 0.16 210) · display: Plus Jakarta Sans · body: Plus Jakarta Sans
+ * nav: kept · signature: in-car cockpit console · states: idle, active, nav-split
+ * axes: dark/geometric-sans/chromatic-cyan · posture: stage · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P9 H8 E9 S9 R9 V9 · weakest: spacing, locked to 4px scale */
+@import url("./tokens.css");
+@import url("./base.css");
+
+/* In-Car Cockpit Streamer Base Canvas */
+html, body {
+    overflow-x: clip;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+button:disabled, input:disabled, select:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Surface cards: Deep slate with crisp hairline cyan border */
+.glass-panel {
+    background: var(--color-paper-2) !important;
+    border: 1px solid var(--color-rule) !important;
+    box-shadow: var(--shadow-card) !important;
+    border-radius: var(--radius-card) !important;
+}
+
+.glass-panel:hover {
+    border-color: var(--color-accent) !important;
+}
+
+/* Range input controls */
+input[type="range"] {
+    -webkit-appearance: none;
+    background: var(--color-paper-3);
+    border: 1px solid var(--color-rule);
+    height: 6px;
+    border-radius: var(--radius-pill);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent);
+    cursor: pointer;
+    border: 2px solid var(--color-paper);
+    box-shadow: var(--shadow-card);
+    transition: transform var(--dur-micro) var(--ease-out);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}

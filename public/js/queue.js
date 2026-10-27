@@ -478,12 +478,35 @@ export function initQueueUI() {
 
     setupReorderListeners();
 
+function extractYoutubeId(url) {
+    if (!url || typeof url !== 'string') return null;
+    const str = url.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
+    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
+}
+
+export function wouldBeConsecutiveDuplicate(videoId) {
+    if (!videoId || typeof videoId !== 'string') return false;
+    const state = getState();
+    if (Array.isArray(state.queue) && state.queue.length > 0) {
+        const lastItem = state.queue[state.queue.length - 1];
+        if (lastItem && lastItem.videoId === videoId) return true;
+    }
+    return false;
+}
+
     // 1. Add Song Action
     const handleAddSong = () => {
         if (!urlInput) return;
         const val = urlInput.value.trim();
         if (!val) {
             return showToast('กรุณาวางลิงก์ YouTube, Spotify หรือพิมพ์ชื่อเพลง', 'error');
+        }
+
+        const directId = extractYoutubeId(val);
+        if (directId && wouldBeConsecutiveDuplicate(directId)) {
+            return showToast('ห้ามเล่นเพลงซ้ำติดต่อกัน 2 รอบ (กรุณารอให้มีเพลงอื่นเล่นคั่นก่อน)', 'warn');
         }
 
         const state = getState();
@@ -613,6 +636,7 @@ export function initQueueUI() {
                 if (dot2) dot2.className = "w-1.5 h-1.5 rounded-full bg-white/30 transition-all duration-200";
                 if (dot3) dot3.className = "w-1.5 h-1.5 rounded-full bg-white/30 transition-all duration-200";
                 btnSkip.title = "กดอีก 2 ครั้งเพื่อข้ามเพลง";
+                showToast('แตะอีก 2 ครั้งเพื่อข้ามเพลง ⏭️ (1/3)', 'info', { duration: 1800 });
                 skipTimer = setTimeout(resetSkipBtn, 2500);
             } else if (skipCount === 2) {
                 btnSkip.className = "h-11 min-h-[44px] px-4 rounded-full bg-orange-500/25 text-orange-200 border border-orange-500/80 text-xs font-bold flex items-center gap-2 transition-all duration-200 active:scale-95 shadow-[0_0_18px_rgba(249,115,22,0.35)] cursor-pointer select-none group animate-pulse";
@@ -621,6 +645,7 @@ export function initQueueUI() {
                 if (dot2) dot2.className = "w-2 h-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(249,115,22,1)] transition-all duration-200";
                 if (dot3) dot3.className = "w-1.5 h-1.5 rounded-full bg-white/40 transition-all duration-200";
                 btnSkip.title = "กดอีก 1 ครั้งเพื่อข้ามเพลงทันที!";
+                showToast('แตะอีก 1 ครั้งเพื่อข้ามเพลงทันที! ⏭️ (2/3)', 'warn', { duration: 1800 });
                 skipTimer = setTimeout(resetSkipBtn, 2500);
             } else {
                 // 3rd Tap: Trigger Skip!

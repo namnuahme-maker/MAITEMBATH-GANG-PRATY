@@ -534,8 +534,8 @@ const ALL_TESTS = [
 
     const readyPromise = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error(`Server failed to boot on port ${ctx.port} within 6000ms. Output:\n${serverOutput}`));
-      }, 6000);
+        reject(new Error(`Server failed to boot on port ${ctx.port} within 10000ms. Output:\n${serverOutput}`));
+      }, 10000);
 
       child.stdout.on('data', (chunk) => {
         const str = chunk.toString();

@@ -17,9 +17,10 @@ import {
     emitPlayerProgress, 
     emitPlayerVideoEnded, 
     emitResolveErrorAction, 
-    emitSendSoundboard 
+    emitSendSoundboard,
+    onSeekVideo
 } from './socket.js';
-import { showToast, escapeHtml } from './ui.js';
+import { showToast, escapeHtml, updateProgress } from './ui.js';
 
 // DOM selector helper
 const $ = (id) => (typeof document !== 'undefined' ? document.getElementById(id) : null);
@@ -40,6 +41,9 @@ let lastLoadedYtVideoId = null;
 // Intro & Warp Animation State
 let introSoundPlayed = false;
 let introDismissed = false;
+let introCrossfadeStarted = false;
+let introPrestartedNext = false;
+let introFadeAudioInterval = null;
 let introAutoTimer = null;
 let warpAnimId = null;
 let warpStars = [];
@@ -213,36 +217,179 @@ export function playIntroSound() {
     playSynthesizedIntroSound();
 }
 
-export function dismissIntro(isReplay = false) {
+function triggerIntroCrossfade(isReplay = false) {
+    if (introCrossfadeStarted || introDismissed) return;
+    introCrossfadeStarted = true;
+
+    const overlay = $('intro-overlay');
+    const introVid = $('intro-video');
+    if (!overlay) return;
+
+    // Begin smooth 1.7s visual crossfade dissolve
+    overlay.classList.add('intro-exit');
+
+    // Ensure underlying player is active and playing
+    if (isHostMode() && getState().currentVideo && getState().isPlaying) {
+        applyHostModeState();
+    }
+
+    // Smooth audio crossfade over 1600ms
+    const targetPartyVol = getState().volume ?? 50;
+    const startIntroVol = introVid ? (introVid.muted ? 0 : introVid.volume) : 0;
+    const startTime = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const crossfadeDuration = 1600;
+
+    clearInterval(introFadeAudioInterval);
+    introFadeAudioInterval = setInterval(() => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / crossfadeDuration);
+
+        // Ramp down intro video audio
+        if (introVid && !introVid.muted) {
+            introVid.volume = Math.max(0, startIntroVol * (1 - progress));
+        }
+
+        // Ramp up underlying host player audio
+        if (isHostMode() && getState().currentVideo) {
+            const rampVol = Math.round(targetPartyVol * (0.15 + 0.85 * progress));
+            setHostPlayerVolume(rampVol);
+        }
+
+        if (progress >= 1) {
+            clearInterval(introFadeAudioInterval);
+            introFadeAudioInterval = null;
+            if (introVid) {
+                try { introVid.pause(); } catch (_) {}
+            }
+        }
+    }, 50);
+}
+
+export function dismissIntro(isReplay = false, isImmediateSkip = false) {
     if (introDismissed) return;
     introDismissed = true;
     clearTimeout(introAutoTimer);
+    clearInterval(introFadeAudioInterval);
+    introFadeAudioInterval = null;
     isWarpingExit = true;
 
     const overlay = $('intro-overlay');
-    if (!overlay) return;
+    const introVid = $('intro-video');
 
-    overlay.classList.add('intro-exit');
+    if (isImmediateSkip) {
+        if (overlay) {
+            overlay.classList.remove('intro-exit');
+            overlay.classList.add('intro-fast-exit');
+        }
+        if (introVid) {
+            try { introVid.pause(); } catch (_) {}
+        }
+        if (isHostMode() && getState().currentVideo) {
+            applyHostModeState();
+            setHostPlayerVolume(getState().volume ?? 50);
+        }
+        setTimeout(() => {
+            if (overlay) {
+                overlay.style.display = 'none';
+                overlay.classList.remove('intro-fast-exit');
+            }
+            isWarpingExit = false;
+        }, 350);
+        return;
+    }
+
+    if (!introCrossfadeStarted) {
+        triggerIntroCrossfade(isReplay);
+    }
+
     setTimeout(() => {
-        overlay.style.display = 'none';
+        if (overlay) {
+            overlay.style.display = 'none';
+            overlay.classList.remove('intro-exit', 'intro-fast-exit');
+        }
+        if (introVid) {
+            try { introVid.pause(); } catch (_) {}
+        }
         isWarpingExit = false;
+        if (isHostMode() && getState().currentVideo) {
+            setHostPlayerVolume(getState().volume ?? 50);
+        }
         if (warpAnimId) {
             cancelAnimationFrame(warpAnimId);
             warpAnimId = null;
         }
-    }, 1100);
+    }, 1800);
 }
 
 export function startIntroSequence(isReplay = false) {
     introDismissed = false;
+    introCrossfadeStarted = false;
+    introPrestartedNext = false;
     isWarpingExit = false;
     introSoundPlayed = false;
+    clearInterval(introFadeAudioInterval);
+    introFadeAudioInterval = null;
+
     const overlay = $('intro-overlay');
     if (!overlay) return;
 
-    overlay.classList.remove('intro-exit');
+    overlay.classList.remove('intro-exit', 'intro-fast-exit');
     overlay.style.display = 'flex';
     overlay.style.opacity = '1';
+
+    // If replaying intro while music is playing, duck music so intro audio is heard clearly
+    if (isReplay && isHostMode() && getState().currentVideo) {
+        setHostPlayerVolume(0);
+    }
+
+    const introVid = $('intro-video');
+    const unmuteHint = $('intro-unmute-hint');
+    if (introVid) {
+        try {
+            introVid.currentTime = 0;
+            introVid.volume = 1;
+            introVid.muted = false;
+            const playPromise = introVid.play();
+            if (playPromise !== undefined) {
+                playPromise.catch((err) => {
+                    console.warn('[Intro] Autoplay with sound restricted, attempting muted playback:', err);
+                    introVid.muted = true;
+                    if (unmuteHint) unmuteHint.classList.remove('hidden');
+                    introVid.play().catch(() => {});
+                });
+            }
+
+            introVid.ontimeupdate = () => {
+                if (introDismissed) return;
+                const dur = introVid.duration;
+                const cur = introVid.currentTime;
+                const effectiveDuration = (isFinite(dur) && dur > 0) ? dur : 6.76;
+
+                // Step 1: Pre-start underlying video at ~4.2s (2.5s before end)
+                // This lets the next video start and play for 1-2s in background
+                if (cur >= effectiveDuration - 2.5 && !introPrestartedNext) {
+                    introPrestartedNext = true;
+                    if (isHostMode() && getState().currentVideo && getState().isPlaying) {
+                        applyHostModeState();
+                        setHostPlayerVolume(Math.min(10, (getState().volume ?? 50) * 0.2));
+                    }
+                }
+
+                // Step 2: Trigger smooth visual crossfade at ~5.0s (1.7s before end)
+                // By now, the next video has already been playing for ~1-1.5s
+                if (cur >= effectiveDuration - 1.7 && !introCrossfadeStarted) {
+                    triggerIntroCrossfade(isReplay);
+                }
+            };
+
+            introVid.onended = () => {
+                dismissIntro(isReplay, false);
+            };
+        } catch (e) {
+            console.warn('[Intro] Video play error:', e);
+        }
+    }
 
     const skipBtn = $('btn-skip-intro');
     if (skipBtn && !skipBtn.dataset.introBound) {
@@ -250,27 +397,28 @@ export function startIntroSequence(isReplay = false) {
         skipBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (introDismissed) return;
-            playSynthesizedIntroSound();
-            dismissIntro(isReplay);
+            dismissIntro(isReplay, true);
         });
     }
 
     if (!overlay.dataset.introBound) {
         overlay.dataset.introBound = 'true';
-        let introStartTime = Date.now();
         overlay.addEventListener('click', () => {
-            if (introDismissed) return;
-            // Prevent accidental dismissal on cold start before user can see the intro
-            if (Date.now() - introStartTime < 1200) return;
-            playSynthesizedIntroSound();
-            dismissIntro();
+            unlockAudioSystem();
+            if (introVid && introVid.muted) {
+                introVid.muted = false;
+                if (unmuteHint) unmuteHint.classList.add('hidden');
+            }
         });
     }
 
-    initWarpCanvas();
-    playIntroSound();
-
-    introAutoTimer = setTimeout(() => dismissIntro(isReplay), 4000);
+    // Safety timeout: video duration is 6.76s; dismiss after 8.0s if not already dismissed
+    clearTimeout(introAutoTimer);
+    introAutoTimer = setTimeout(() => {
+        if (!introDismissed) {
+            dismissIntro(isReplay, false);
+        }
+    }, 8000);
 }
 
 // ============================================================================
@@ -614,6 +762,16 @@ export function applyHostModeState() {
         activePlayerVideoId = videoId;
         directFallbackToEmbedId = null;
         lastLoadedYtVideoId = null;
+        const playerArea = $('player-area');
+        const overlay = $('intro-overlay');
+        if (playerArea && (!overlay || overlay.style.display === 'none')) {
+            playerArea.classList.remove('player-crossfade-in');
+            void playerArea.offsetWidth;
+            playerArea.classList.add('player-crossfade-in');
+            setTimeout(() => {
+                playerArea.classList.remove('player-crossfade-in');
+            }, 600);
+        }
     }
 
     if (shouldForceDirectStream(videoId)) {
@@ -690,6 +848,56 @@ export function getPrecisePlaybackTime() {
         }
     }
     return state.currentTime || 0;
+}
+
+export function getPlayerDuration() {
+    const nativeVideoEl = $('native-video');
+    const nativeAudioEl = $('native-audio');
+
+    if (directVideoMode && nativeVideoEl && isFinite(nativeVideoEl.duration) && nativeVideoEl.duration > 0) {
+        return nativeVideoEl.duration;
+    }
+    if (directVideoMode && directHasSeparateAudio && nativeAudioEl && isFinite(nativeAudioEl.duration) && nativeAudioEl.duration > 0) {
+        return nativeAudioEl.duration;
+    }
+    if (playerReady && ytPlayer && typeof ytPlayer.getDuration === 'function') {
+        const dur = ytPlayer.getDuration();
+        if (isFinite(dur) && dur > 0) return dur;
+    }
+    const stateDur = getState().duration;
+    if (isFinite(stateDur) && stateDur > 0) return stateDur;
+    return 0;
+}
+
+export function seekHostPlayer(seconds) {
+    if (!isHostMode()) return;
+    const targetTime = Math.max(0, Number(seconds) || 0);
+
+    const nativeVideo = $('native-video');
+    const nativeAudio = $('native-audio');
+
+    if (directVideoMode && nativeVideo) {
+        try {
+            nativeVideo.currentTime = targetTime;
+            if (directHasSeparateAudio && nativeAudio) {
+                nativeAudio.currentTime = targetTime;
+            }
+        } catch (e) {
+            console.warn('[Audio] Direct stream seek error:', e);
+        }
+    } else if (playerReady && ytPlayer && typeof ytPlayer.seekTo === 'function') {
+        try {
+            ytPlayer.seekTo(targetTime, true);
+        } catch (e) {
+            console.warn('[Audio] YouTube seek error:', e);
+        }
+    }
+
+    const dur = getPlayerDuration();
+    if (dur > 0) {
+        updateProgress(targetTime, dur);
+        emitPlayerProgress(targetTime, dur);
+    }
 }
 
 // ============================================================================
@@ -1013,6 +1221,22 @@ export function initAudioSubsystem() {
                 const badge = $('player-quality-badge');
                 if (badge) badge.textContent = realLabel;
             }
+            const dur = nativeVideo.duration;
+            if (isFinite(dur) && dur > 0) {
+                updateProgress(nativeVideo.currentTime || 0, dur);
+                emitPlayerProgress(nativeVideo.currentTime || 0, dur);
+            }
+        });
+
+        nativeVideo.addEventListener('timeupdate', () => {
+            if (!isHostMode() || !directVideoMode || !directStreamReadySrcSet) return;
+            const cur = (directHasSeparateAudio && nativeAudio && !nativeAudio.paused)
+                ? (nativeAudio.currentTime || 0)
+                : (nativeVideo.currentTime || 0);
+            const dur = getPlayerDuration();
+            if (dur > 0) {
+                updateProgress(cur, dur);
+            }
         });
 
         nativeVideo.addEventListener('loadeddata', () => {
@@ -1175,7 +1399,8 @@ export function initAudioSubsystem() {
         initYouTubeAPI();
     }
 
-    // Host 1-second progress ticker & drift reconciliation
+    // Host progress ticker & socket sync broadcast (smooth 250ms local UI, throttled 1000ms socket sync)
+    let lastSocketEmitTime = 0;
     setInterval(() => {
         if (!isHostMode()) return;
         const nativeVideoEl = $('native-video');
@@ -1194,16 +1419,41 @@ export function initAudioSubsystem() {
             const duration = isFinite(nativeVideoEl.duration) && nativeVideoEl.duration > 0
                 ? nativeVideoEl.duration
                 : (nativeAudioEl && isFinite(nativeAudioEl.duration) ? nativeAudioEl.duration : 0);
-            emitPlayerProgress(currentTime, duration);
+
+            if (duration > 0) {
+                updateProgress(currentTime, duration);
+            }
+
+            const now = Date.now();
+            if (now - lastSocketEmitTime >= 950 && duration > 0) {
+                lastSocketEmitTime = now;
+                emitPlayerProgress(currentTime, duration);
+            }
             return;
         }
 
         if (playerReady && ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === window.YT.PlayerState.PLAYING) {
             const currentTime = ytPlayer.getCurrentTime();
             const duration = ytPlayer.getDuration();
-            emitPlayerProgress(currentTime, duration);
+
+            if (duration > 0) {
+                updateProgress(currentTime, duration);
+            }
+
+            const now = Date.now();
+            if (now - lastSocketEmitTime >= 950 && duration > 0) {
+                lastSocketEmitTime = now;
+                emitPlayerProgress(currentTime, duration);
+            }
         }
-    }, 1000);
+    }, 250);
+
+    // Inbound socket seek-video event (Host applies seek to active media element)
+    onSeekVideo((seconds) => {
+        if (isHostMode()) {
+            seekHostPlayer(seconds);
+        }
+    });
 
     // DJ Soundboard UI buttons
     document.querySelectorAll('[data-soundboard]').forEach((btn) => {

@@ -12,6 +12,7 @@
 import { getState, onStateChange } from './state.js';
 import { emitAddToQueue } from './socket.js';
 import { showToast, escapeHtml, safeColor } from './ui.js';
+import { wouldBeConsecutiveDuplicate } from './queue.js';
 
 const STORAGE_KEY = 'maitembath_favorites';
 
@@ -356,6 +357,10 @@ export function initFavoritesUI() {
         const enqueueBtn = e.target.closest('[data-enqueue-fav]');
         if (enqueueBtn) {
             const vid = enqueueBtn.getAttribute('data-enqueue-fav');
+            if (vid && wouldBeConsecutiveDuplicate(vid)) {
+                showToast('ห้ามเล่นเพลงซ้ำติดต่อกัน 2 รอบ (กรุณารอให้มีเพลงอื่นเล่นคั่นก่อน)', 'warn');
+                return;
+            }
             const item = favorites.find(f => f.videoId === vid);
             if (item) {
                 const state = getState();

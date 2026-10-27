@@ -14,7 +14,7 @@ import { getState, onStateChange } from './state.js';
 import { emitAddToQueue } from './socket.js';
 import { showToast, escapeHtml, safeColor } from './ui.js';
 import { isFavorite, toggleFavorite } from './favorites.js';
-import { getTrackThumb, getSourceIconHtml } from './queue.js';
+import { getTrackThumb, getSourceIconHtml, wouldBeConsecutiveDuplicate } from './queue.js';
 
 const STORAGE_KEY = 'maitembath_track_history';
 const MAX_HISTORY_ITEMS = 50;
@@ -144,6 +144,10 @@ function formatRelativeTime(timestamp) {
 // --- 1-Click Re-Queue Action ---
 export function requeueTrack(track) {
     if (!track) return;
+    if (track.videoId && wouldBeConsecutiveDuplicate(track.videoId)) {
+        showToast('ห้ามเล่นเพลงซ้ำติดต่อกัน 2 รอบ (กรุณารอให้มีเพลงอื่นเล่นคั่นก่อน)', 'warn');
+        return;
+    }
     const state = getState();
     const profile = state.myProfile || {
         name: localStorage.getItem('nickname') || 'ผู้ใช้ทั่วไป',

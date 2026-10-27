@@ -15,7 +15,7 @@
  * - Settings modal, profile customization, Auto-DJ config, and 5-tap secret test lab
  */
 
-import { getState, setMyProfile, onStateChange, onConnectionChange } from './state.js';
+import { getState, setMyProfile, onStateChange, onConnectionChange, isHostMode } from './state.js';
 import { 
     getSocket,
     emitPlayControl, 
@@ -31,7 +31,7 @@ import {
     emitSyncNavState
 } from './socket.js';
 import { getTrackThumb, getSourceIconHtml } from './queue.js';
-import { playSoftAlertChime, speakThaiText, startIntroSequence } from './audio.js';
+import { playSoftAlertChime, speakThaiText, startIntroSequence, seekHostPlayer, getPlayerDuration, getPrecisePlaybackTime } from './audio.js';
 import { AVATAR_PRESETS, resizeImageToAvatarDataUrl, getAvatarInitial } from './avatars.js';
 
 // --- Safe Utility Functions ---
@@ -426,13 +426,41 @@ export function renderNowPlaying(currentVideo, isPlaying) {
 }
 
 // --- Progress & Time Display ---
+let isScrubbing = false;
+export function setIsScrubbingState(val) { isScrubbing = Boolean(val); }
+
+export function getEffectiveDuration() {
+    const state = getState();
+    if (state.duration && state.duration > 0) return state.duration;
+    if (typeof getPlayerDuration === 'function') {
+        const dur = getPlayerDuration();
+        if (dur > 0) return dur;
+    }
+    if (timeTotal && timeTotal.textContent && timeTotal.textContent !== '0:00') {
+        const parts = timeTotal.textContent.trim().split(':').map(Number);
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            return parts[0] * 60 + parts[1];
+        }
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+            return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+    }
+    return 0;
+}
+
 export function updateProgress(curr, dur) {
+    if (isScrubbing) return;
     if (!progressFill || !timeNow || !timeTotal) return;
     if (dur > 0) {
         const p = (curr / dur) * 100;
         progressFill.style.width = `${Math.min(100, Math.max(0, p))}%`;
         timeNow.textContent = formatTime(curr);
         timeTotal.textContent = formatTime(dur);
+
+        if (progressBar) {
+            progressBar.setAttribute('aria-valuenow', String(Math.round(p)));
+            progressBar.setAttribute('aria-valuetext', `${formatTime(curr)} จาก ${formatTime(dur)}`);
+        }
 
         // Sync Mini-player progress bar
         if (!miniProgressFill) miniProgressFill = $('mini-progress-fill');
@@ -443,6 +471,10 @@ export function updateProgress(curr, dur) {
         progressFill.style.width = `0%`;
         timeNow.textContent = '0:00';
         timeTotal.textContent = '0:00';
+        if (progressBar) {
+            progressBar.setAttribute('aria-valuenow', '0');
+            progressBar.setAttribute('aria-valuetext', '0:00');
+        }
         if (!miniProgressFill) miniProgressFill = $('mini-progress-fill');
         if (miniProgressFill) miniProgressFill.style.width = `0%`;
     }
@@ -1204,15 +1236,99 @@ export function initUI() {
         });
     }
 
-    // 4. Progress Bar Seek
+    // 4. Progress Bar Seek & Interactive Scrubbing (Click, Drag, Touch & Keyboard)
     if (progressBar) {
-        progressBar.addEventListener('click', (e) => {
-            const state = getState();
-            if (!state.currentVideo || !state.duration) return;
+        let isLocalScrubbing = false;
+
+        const getScrubTimeFromEvent = (e) => {
             const rect = progressBar.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            const seekTime = pos * state.duration;
-            emitSeekTo(seekTime);
+            if (rect.width <= 0) return { pos: 0, seekTime: 0, duration: 0 };
+            const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+            const duration = getEffectiveDuration();
+            return { pos, seekTime: pos * duration, duration };
+        };
+
+        const updateScrubVisual = (pos, seekTime, duration) => {
+            if (progressFill) {
+                progressFill.style.width = `${pos * 100}%`;
+            }
+            if (timeNow) {
+                timeNow.textContent = formatTime(seekTime);
+            }
+            if (timeTotal && duration > 0) {
+                timeTotal.textContent = formatTime(duration);
+            }
+            if (miniProgressFill) {
+                miniProgressFill.style.width = `${pos * 100}%`;
+            }
+        };
+
+        const commitSeek = (seekTime) => {
+            const duration = getEffectiveDuration();
+            if (duration <= 0) return;
+            const clampedSeek = Math.max(0, Math.min(duration, seekTime));
+
+            // Optimistic local UI update
+            updateProgress(clampedSeek, duration);
+
+            // Emit to server for peer sync
+            emitSeekTo(clampedSeek);
+
+            // If in Host mode, seek local media element immediately
+            if (isHostMode()) {
+                seekHostPlayer(clampedSeek);
+            }
+        };
+
+        progressBar.addEventListener('pointerdown', (e) => {
+            const state = getState();
+            if (!state.currentVideo) return;
+            const duration = getEffectiveDuration();
+            if (duration <= 0) return;
+
+            isLocalScrubbing = true;
+            setIsScrubbingState(true);
+            progressBar.classList.add('is-scrubbing');
+            try { progressBar.setPointerCapture(e.pointerId); } catch (_) {}
+
+            const { pos, seekTime } = getScrubTimeFromEvent(e);
+            updateScrubVisual(pos, seekTime, duration);
+        });
+
+        progressBar.addEventListener('pointermove', (e) => {
+            if (!isLocalScrubbing) return;
+            const { pos, seekTime, duration } = getScrubTimeFromEvent(e);
+            if (duration > 0) {
+                updateScrubVisual(pos, seekTime, duration);
+            }
+        });
+
+        const stopScrub = (e) => {
+            if (!isLocalScrubbing) return;
+            isLocalScrubbing = false;
+            setIsScrubbingState(false);
+            progressBar.classList.remove('is-scrubbing');
+            try { progressBar.releasePointerCapture(e.pointerId); } catch (_) {}
+
+            const { seekTime } = getScrubTimeFromEvent(e);
+            commitSeek(seekTime);
+        };
+
+        progressBar.addEventListener('pointerup', stopScrub);
+        progressBar.addEventListener('pointercancel', stopScrub);
+
+        // Keyboard arrow navigation (-5s / +5s)
+        progressBar.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const cur = (typeof getPrecisePlaybackTime === 'function' ? getPrecisePlaybackTime() : (getState().currentTime || 0));
+                const dur = getEffectiveDuration();
+                if (dur <= 0) return;
+                const delta = e.key === 'ArrowLeft' ? -5 : 5;
+                const target = Math.max(0, Math.min(dur, cur + delta));
+                commitSeek(target);
+            }
         });
     }
 
@@ -1638,8 +1754,8 @@ export function initUI() {
             updateUsersList(users);
         });
         socket.on('time-update', (data) => {
-            const state = getState();
-            if (!state.hostMode && data) {
+            if (!data) return;
+            if (!isHostMode()) {
                 updateProgress(data.currentTime, data.duration);
             }
         });
