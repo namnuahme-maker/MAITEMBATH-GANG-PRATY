@@ -319,6 +319,12 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
     }
 }
 
+if (typeof window !== 'undefined') {
+    window.__introDismissCallback = (isImmediate) => {
+        dismissIntro(false, isImmediate);
+    };
+}
+
 export function startIntroSequence(isReplay = false) {
     introDismissed = false;
     introCrossfadeStarted = false;
@@ -334,6 +340,12 @@ export function startIntroSequence(isReplay = false) {
 
     const overlay = $('intro-overlay');
     if (!overlay) return;
+
+    // If already dismissed (e.g. by instant inline script or user skipped early) and not an explicit replay:
+    if (!isReplay && (overlay.classList.contains('hidden') || overlay.style.display === 'none')) {
+        introDismissed = true;
+        return;
+    }
 
     overlay.classList.remove('intro-exit', 'intro-fast-exit', 'hidden');
     overlay.classList.add('flex');

@@ -1386,22 +1386,141 @@
 <body class="h-[100dvh] flex flex-col overflow-hidden bg-[var(--genesis-bg)] text-[var(--genesis-text-primary)] transition-colors duration-200">
 
     <!-- Video Intro Overlay -->
-    <div id="intro-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center select-none overflow-hidden bg-black">
-        <video id="intro-video" poster="/intro-poster.jpg" autoplay muted playsinline preload="auto" class="absolute inset-0 w-full h-full object-contain bg-black z-10">
+    <div id="intro-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center select-none overflow-hidden bg-black cursor-pointer">
+        <video id="intro-video" poster="/intro-poster.jpg" autoplay muted playsinline preload="auto" class="absolute inset-0 w-full h-full object-contain bg-black z-10 pointer-events-none">
             <source src="/intro.mp4" type="video/mp4">
         </video>
 
         <!-- Prominent Sound Toggle Pill -->
-        <button id="intro-unmute-btn" type="button" class="absolute top-8 z-30 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-white bg-cyan-600/90 hover:bg-cyan-500 border border-cyan-400/40 shadow-lg flex items-center gap-2 cursor-pointer transition active:scale-95 animate-pulse" title="แตะเพื่อเปิดเสียง">
+        <button id="intro-unmute-btn" type="button" class="absolute top-8 z-30 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-white bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/40 shadow-lg flex items-center gap-2 cursor-pointer transition active:scale-95 animate-pulse" title="แตะเพื่อเปิดเสียง">
             <span class="fa-solid fa-volume-high text-sm"></span>
             <span>แตะหน้าจอเพื่อเปิดเสียง</span>
         </button>
 
-        <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-30 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
+        <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-30 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
             <span>ข้ามอินโทร</span>
             <span class="fa-solid fa-forward-step text-xs"></span>
         </button>
     </div>
+
+    <!-- ZERO-LATENCY INLINE INTRO CONTROLLER -->
+    <script>
+    (function initInstantIntro() {
+        var overlay = document.getElementById('intro-overlay');
+        var vid = document.getElementById('intro-video');
+        var skipBtn = document.getElementById('btn-skip-intro');
+        var unmuteBtn = document.getElementById('intro-unmute-btn');
+        if (!overlay || !vid) return;
+
+        var dismissed = false;
+
+        function doDismiss(isImmediate) {
+            if (dismissed) return;
+            dismissed = true;
+            try { vid.pause(); } catch(e) {}
+            if (overlay) {
+                overlay.style.setProperty('display', 'none', 'important');
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+                overlay.style.pointerEvents = 'none';
+                overlay.style.opacity = '0';
+            }
+            if (window.__introDismissCallback) {
+                try { window.__introDismissCallback(isImmediate); } catch(e) {}
+            }
+        }
+
+        window.__dismissIntroNow = doDismiss;
+
+        function doUnmute() {
+            if (vid) {
+                vid.muted = false;
+                vid.volume = 1;
+                if (vid.paused) {
+                    vid.play().catch(function() {});
+                }
+            }
+            if (unmuteBtn) unmuteBtn.style.setProperty('display', 'none', 'important');
+        }
+
+        // 1. Skip button: Immediate guaranteed click handler from millisecond 0
+        if (skipBtn) {
+            skipBtn.onclick = function(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                doDismiss(true);
+            };
+            skipBtn.onpointerdown = function(e) {
+                if (e) e.stopPropagation();
+            };
+        }
+
+        // 2. Unmute button & Tap Anywhere for Sound
+        if (unmuteBtn) {
+            unmuteBtn.onclick = function(e) {
+                if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+                doUnmute();
+            };
+        }
+
+        overlay.onclick = function() {
+            doUnmute();
+        };
+
+        // 3. Try initial unmuted playback
+        try {
+            vid.muted = false;
+            vid.volume = 1;
+            var p = vid.play();
+            if (p && p.then) {
+                p.then(function() {
+                    if (unmuteBtn) unmuteBtn.style.setProperty('display', 'none', 'important');
+                }).catch(function() {
+                    vid.muted = true;
+                    vid.play().catch(function() {});
+                    if (unmuteBtn) unmuteBtn.style.removeProperty('display');
+                });
+            }
+        } catch(e) {
+            vid.muted = true;
+            try { vid.play().catch(function() {}); } catch(_) {}
+        }
+
+        // 4. Video completion handlers
+        vid.onended = function() {
+            doDismiss(false);
+        };
+
+        vid.ontimeupdate = function() {
+            var dur = vid.duration;
+            var cur = vid.currentTime;
+            var effectiveDur = (isFinite(dur) && dur > 0) ? dur : 6.75;
+            if (cur >= effectiveDur - 0.25) {
+                doDismiss(false);
+            }
+        };
+
+        vid.onerror = function() {
+            doDismiss(true);
+        };
+
+        // 5. Watchdog & Max Duration Timers
+        setTimeout(function() {
+            if (!dismissed && (vid.paused || vid.currentTime === 0)) {
+                doDismiss(true);
+            }
+        }, 3000);
+
+        setTimeout(function() {
+            doDismiss(false);
+        }, 7500);
+    })();
+    </script>
 
     <!-- Login/Profile Overlay -->
     <div id="login-overlay" class="fixed inset-0 bg-primary/95 backdrop-blur z-[60] flex items-center justify-center hidden">
@@ -2602,6 +2721,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/app.js?v=30"></script>
+    <script type="module" src="/js/main.js?v=31"></script>
+    <script nomodule src="/app.js?v=31"></script>
 </body>
 </html>
