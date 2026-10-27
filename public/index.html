@@ -176,18 +176,18 @@
         /* CINEMATIC INTRO CROSSFADE SUITE */
         #intro-overlay {
             background: var(--color-paper);
-            transition: opacity 0.4s ease-out;
+            transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1);
             will-change: opacity;
         }
         #intro-overlay.intro-exit {
             opacity: 0 !important;
             pointer-events: none !important;
-            transition: opacity 0.4s ease-out !important;
+            transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1) !important;
         }
         #intro-overlay.intro-fast-exit {
             opacity: 0 !important;
             pointer-events: none !important;
-            transition: opacity 0.15s ease-out !important;
+            transition: opacity 0.25s ease-out !important;
         }
         #player-area.player-crossfade-in {
             animation: playerCrossfadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1391,12 +1391,6 @@
             <source src="/intro.mp4" type="video/mp4">
         </video>
 
-        <!-- Prominent Sound Toggle Pill -->
-        <button id="intro-unmute-btn" type="button" class="absolute top-8 z-30 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-white bg-cyan-600 hover:bg-cyan-500 border border-cyan-400/40 shadow-lg flex items-center gap-2 cursor-pointer transition active:scale-95 animate-pulse" title="แตะเพื่อเปิดเสียง">
-            <span class="fa-solid fa-volume-high text-sm"></span>
-            <span>แตะหน้าจอเพื่อเปิดเสียง</span>
-        </button>
-
         <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-30 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
             <span>ข้ามอินโทร</span>
             <span class="fa-solid fa-forward-step text-xs"></span>
@@ -1409,21 +1403,51 @@
         var overlay = document.getElementById('intro-overlay');
         var vid = document.getElementById('intro-video');
         var skipBtn = document.getElementById('btn-skip-intro');
-        var unmuteBtn = document.getElementById('intro-unmute-btn');
         if (!overlay || !vid) return;
 
         var dismissed = false;
+        var fadeStarted = false;
+
+        function startFadeOut() {
+            if (fadeStarted) return;
+            fadeStarted = true;
+            if (overlay) {
+                overlay.style.transition = 'opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1)';
+                overlay.style.opacity = '0';
+                overlay.style.pointerEvents = 'none';
+            }
+            if (window.__introCrossfadeCallback) {
+                try { window.__introCrossfadeCallback(); } catch(e) {}
+            }
+        }
 
         function doDismiss(isImmediate) {
             if (dismissed) return;
             dismissed = true;
-            try { vid.pause(); } catch(e) {}
-            if (overlay) {
-                overlay.style.setProperty('display', 'none', 'important');
-                overlay.classList.add('hidden');
-                overlay.classList.remove('flex');
-                overlay.style.pointerEvents = 'none';
-                overlay.style.opacity = '0';
+            if (isImmediate) {
+                try { vid.pause(); } catch(e) {}
+                if (overlay) {
+                    overlay.style.transition = 'opacity 0.25s ease-out';
+                    overlay.style.opacity = '0';
+                    overlay.style.pointerEvents = 'none';
+                }
+                setTimeout(function() {
+                    if (overlay) {
+                        overlay.style.setProperty('display', 'none', 'important');
+                        overlay.classList.add('hidden');
+                        overlay.classList.remove('flex');
+                    }
+                }, 250);
+            } else {
+                startFadeOut();
+                setTimeout(function() {
+                    try { vid.pause(); } catch(e) {}
+                    if (overlay) {
+                        overlay.style.setProperty('display', 'none', 'important');
+                        overlay.classList.add('hidden');
+                        overlay.classList.remove('flex');
+                    }
+                }, 1500);
             }
             if (window.__introDismissCallback) {
                 try { window.__introDismissCallback(isImmediate); } catch(e) {}
@@ -1432,18 +1456,7 @@
 
         window.__dismissIntroNow = doDismiss;
 
-        function doUnmute() {
-            if (vid) {
-                vid.muted = false;
-                vid.volume = 1;
-                if (vid.paused) {
-                    vid.play().catch(function() {});
-                }
-            }
-            if (unmuteBtn) unmuteBtn.style.setProperty('display', 'none', 'important');
-        }
-
-        // 1. Skip button: Immediate guaranteed click handler from millisecond 0
+        // 1. Skip button: Immediate 0.25s smooth skip from millisecond 0
         if (skipBtn) {
             skipBtn.onclick = function(e) {
                 if (e) {
@@ -1457,33 +1470,24 @@
             };
         }
 
-        // 2. Unmute button & Tap Anywhere for Sound
-        if (unmuteBtn) {
-            unmuteBtn.onclick = function(e) {
-                if (e) {
-                    e.stopPropagation();
-                    e.preventDefault();
-                }
-                doUnmute();
-            };
-        }
-
-        overlay.onclick = function() {
-            doUnmute();
-        };
-
-        // 3. Try initial unmuted playback
+        // 2. Play with Sound from the start
         try {
             vid.muted = false;
             vid.volume = 1;
             var p = vid.play();
             if (p && p.then) {
-                p.then(function() {
-                    if (unmuteBtn) unmuteBtn.style.setProperty('display', 'none', 'important');
-                }).catch(function() {
+                p.catch(function() {
+                    // Browser policy restricted unmuted autoplay: start muted and unmute on first user click
                     vid.muted = true;
                     vid.play().catch(function() {});
-                    if (unmuteBtn) unmuteBtn.style.removeProperty('display');
+                    var quickUnmute = function() {
+                        vid.muted = false;
+                        vid.volume = 1;
+                        window.removeEventListener('pointerdown', quickUnmute);
+                        window.removeEventListener('click', quickUnmute);
+                    };
+                    window.addEventListener('pointerdown', quickUnmute, { once: true });
+                    window.addEventListener('click', quickUnmute, { once: true });
                 });
             }
         } catch(e) {
@@ -1491,7 +1495,17 @@
             try { vid.play().catch(function() {}); } catch(_) {}
         }
 
-        // 4. Video completion handlers
+        overlay.onclick = function() {
+            if (vid) {
+                vid.muted = false;
+                vid.volume = 1;
+                if (vid.paused) {
+                    vid.play().catch(function() {});
+                }
+            }
+        };
+
+        // 3. Video completion handlers with smooth fade out
         vid.onended = function() {
             doDismiss(false);
         };
@@ -1500,7 +1514,21 @@
             var dur = vid.duration;
             var cur = vid.currentTime;
             var effectiveDur = (isFinite(dur) && dur > 0) ? dur : 6.75;
-            if (cur >= effectiveDur - 0.25) {
+
+            // Trigger smooth 1.5s visual fade out at ~5.2s (1.55s before end)
+            if (cur >= effectiveDur - 1.55 && !fadeStarted) {
+                startFadeOut();
+            }
+
+            // Smooth audio fade down during visual fade
+            if (fadeStarted && vid && !vid.muted) {
+                var remaining = Math.max(0, effectiveDur - cur);
+                var progress = Math.min(1, Math.max(0, 1 - (remaining / 1.55)));
+                vid.volume = Math.max(0, 1 - progress);
+            }
+
+            // Finalize dismissal at end
+            if (cur >= effectiveDur - 0.05) {
                 doDismiss(false);
             }
         };
@@ -1509,7 +1537,7 @@
             doDismiss(true);
         };
 
-        // 5. Watchdog & Max Duration Timers
+        // 4. Watchdog & Max Duration Timers
         setTimeout(function() {
             if (!dismissed && (vid.paused || vid.currentTime === 0)) {
                 doDismiss(true);

@@ -277,9 +277,6 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
 
     const overlay = $('intro-overlay');
     const introVid = $('intro-video');
-    const unmuteBtn = $('intro-unmute-btn');
-
-    if (unmuteBtn) unmuteBtn.classList.add('hidden');
 
     if (introVid) {
         try { introVid.pause(); } catch (_) {}
@@ -304,7 +301,7 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
                     overlay.classList.remove('flex');
                     overlay.style.setProperty('display', 'none', 'important');
                 }
-            }, 300);
+            }, 1500);
         }
     }
 
@@ -320,6 +317,12 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
 }
 
 if (typeof window !== 'undefined') {
+    window.__introCrossfadeCallback = () => {
+        if (isHostMode() && getState().currentVideo && getState().isPlaying) {
+            applyHostModeState();
+            setHostPlayerVolume(Math.min(10, (getState().volume ?? 50) * 0.2));
+        }
+    };
     window.__introDismissCallback = (isImmediate) => {
         dismissIntro(false, isImmediate);
     };
@@ -359,11 +362,7 @@ export function startIntroSequence(isReplay = false) {
     }
 
     const introVid = $('intro-video');
-    const unmuteBtn = $('intro-unmute-btn');
-    if (unmuteBtn) unmuteBtn.classList.remove('hidden');
 
-    // Handler when user interacts anywhere on intro or unmute button:
-    // Unmutes audio, ensures volume is 100%, resumes Web Audio context
     const handleUnmuteGesture = () => {
         unlockAudioSystem();
         if (introVid) {
@@ -373,15 +372,7 @@ export function startIntroSequence(isReplay = false) {
                 introVid.play().catch(() => {});
             }
         }
-        if (unmuteBtn) unmuteBtn.classList.add('hidden');
     };
-
-    if (unmuteBtn) {
-        unmuteBtn.onclick = (e) => {
-            e.stopPropagation();
-            handleUnmuteGesture();
-        };
-    }
 
     overlay.onclick = () => {
         handleUnmuteGesture();
@@ -398,17 +389,13 @@ export function startIntroSequence(isReplay = false) {
             introVid.currentTime = 0;
             introVid.volume = 1;
 
-            // Attempt unmuted play first; if browser blocks, fallback to muted + show unmute button
+            // Attempt unmuted play first; if browser blocks, fallback to muted
             introVid.muted = false;
             const playPromise = introVid.play();
             if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    // Played with sound directly! Hide prompt
-                    if (unmuteBtn) unmuteBtn.classList.add('hidden');
-                }).catch((err) => {
+                playPromise.catch((err) => {
                     console.warn('[Intro] Unmuted autoplay blocked by browser policy, starting muted:', err);
                     introVid.muted = true;
-                    if (unmuteBtn) unmuteBtn.classList.remove('hidden');
                     introVid.play().catch(() => {
                         dismissIntro(isReplay, true);
                     });
