@@ -268,6 +268,9 @@ function triggerIntroCrossfade(isReplay = false) {
 }
 
 export function dismissIntro(isReplay = false, isImmediateSkip = false) {
+    if (introDismissed) return;
+    introDismissed = true;
+
     clearTimeout(introAutoTimer);
     clearTimeout(introWatchdogTimer);
     introAutoTimer = null;
@@ -278,12 +281,6 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
     const overlay = $('intro-overlay');
     const introVid = $('intro-video');
 
-    if (introVid) {
-        try { introVid.pause(); } catch (_) {}
-    }
-
-    introDismissed = true;
-
     if (overlay) {
         if (isImmediateSkip) {
             overlay.classList.add('intro-fast-exit', 'hidden');
@@ -291,6 +288,9 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
             overlay.style.setProperty('display', 'none', 'important');
             overlay.style.opacity = '0';
             overlay.style.pointerEvents = 'none';
+            if (introVid) {
+                try { introVid.pause(); } catch (_) {}
+            }
         } else {
             overlay.classList.add('intro-exit');
             overlay.style.opacity = '0';
@@ -301,8 +301,13 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
                     overlay.classList.remove('flex');
                     overlay.style.setProperty('display', 'none', 'important');
                 }
-            }, 1500);
+                if (introVid) {
+                    try { introVid.pause(); } catch (_) {}
+                }
+            }, 800);
         }
+    } else if (introVid) {
+        try { introVid.pause(); } catch (_) {}
     }
 
     if (warpAnimId) {
@@ -320,7 +325,7 @@ if (typeof window !== 'undefined') {
     window.__introCrossfadeCallback = () => {
         if (isHostMode() && getState().currentVideo && getState().isPlaying) {
             applyHostModeState();
-            setHostPlayerVolume(Math.min(10, (getState().volume ?? 50) * 0.2));
+            setHostPlayerVolume(getState().volume ?? 50);
         }
     };
     window.__introDismissCallback = (isImmediate) => {
@@ -344,9 +349,17 @@ export function startIntroSequence(isReplay = false) {
     const overlay = $('intro-overlay');
     if (!overlay) return;
 
-    // If already dismissed (e.g. by instant inline script or user skipped early) and not an explicit replay:
+    // If already dismissed and not an explicit replay:
     if (!isReplay && (overlay.classList.contains('hidden') || overlay.style.display === 'none')) {
         introDismissed = true;
+        return;
+    }
+
+    const introVid = $('intro-video');
+
+    // If cold start (!isReplay) and inline controller is actively running the intro video:
+    if (!isReplay && (window.__introInlineActive || (introVid && (!introVid.paused || introVid.currentTime > 0)))) {
+        // Let inline script handle completion seamlessly without resetting or interrupting playback
         return;
     }
 
@@ -360,8 +373,6 @@ export function startIntroSequence(isReplay = false) {
     if (isReplay && isHostMode() && getState().currentVideo) {
         setHostPlayerVolume(0);
     }
-
-    const introVid = $('intro-video');
 
     const handleUnmuteGesture = () => {
         unlockAudioSystem();
@@ -406,19 +417,10 @@ export function startIntroSequence(isReplay = false) {
                 if (introDismissed) return;
                 const dur = introVid.duration;
                 const cur = introVid.currentTime;
-                const effectiveDuration = (isFinite(dur) && dur > 0) ? dur : 6.75;
+                const effectiveDuration = (isFinite(dur) && dur > 0) ? dur : 6.76;
 
-                // Pre-start underlying video at ~4.2s (2.5s before end)
-                if (cur >= effectiveDuration - 2.5 && !introPrestartedNext) {
-                    introPrestartedNext = true;
-                    if (isHostMode() && getState().currentVideo && getState().isPlaying) {
-                        applyHostModeState();
-                        setHostPlayerVolume(Math.min(10, (getState().volume ?? 50) * 0.2));
-                    }
-                }
-
-                // If within 0.25s of end, dismiss cleanly
-                if (cur >= effectiveDuration - 0.25) {
+                // When video reaches completion, dismiss with smooth fade
+                if (cur >= effectiveDuration - 0.08) {
                     dismissIntro(isReplay, false);
                 }
             };
@@ -444,20 +446,20 @@ export function startIntroSequence(isReplay = false) {
         };
     }
 
-    // Safety Watchdog: If after 2.5s video has not progressed, dismiss intro to avoid stalling
+    // Safety Watchdog: Only dismiss if video NEVER started playing after 8s
     introWatchdogTimer = setTimeout(() => {
-        if (!introDismissed && (!introVid || introVid.paused || introVid.currentTime === 0)) {
+        if (!introDismissed && (!introVid || (introVid.paused && introVid.currentTime === 0))) {
             console.warn('[Intro] Video stalled or autoplay blocked on startup. Auto-dismissing.');
             dismissIntro(isReplay, true);
         }
-    }, 2500);
+    }, 8000);
 
-    // Absolute Maximum safety timeout: dismiss after 7.5s regardless
+    // Absolute Maximum safety timeout: 15s to allow full buffering + full 6.76s playback
     introAutoTimer = setTimeout(() => {
         if (!introDismissed) {
             dismissIntro(isReplay, false);
         }
-    }, 7500);
+    }, 15000);
 }
 
 // ============================================================================

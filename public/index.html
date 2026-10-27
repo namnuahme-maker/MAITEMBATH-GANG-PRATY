@@ -176,13 +176,13 @@
         /* CINEMATIC INTRO CROSSFADE SUITE */
         #intro-overlay {
             background: var(--color-paper);
-            transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1);
             will-change: opacity;
         }
         #intro-overlay.intro-exit {
             opacity: 0 !important;
             pointer-events: none !important;
-            transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1) !important;
         }
         #intro-overlay.intro-fast-exit {
             opacity: 0 !important;
@@ -1405,6 +1405,7 @@
         var skipBtn = document.getElementById('btn-skip-intro');
         if (!overlay || !vid) return;
 
+        window.__introInlineActive = true;
         var dismissed = false;
         var fadeStarted = false;
 
@@ -1412,7 +1413,7 @@
             if (fadeStarted) return;
             fadeStarted = true;
             if (overlay) {
-                overlay.style.transition = 'opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1)';
+                overlay.style.transition = 'opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1)';
                 overlay.style.opacity = '0';
                 overlay.style.pointerEvents = 'none';
             }
@@ -1421,12 +1422,13 @@
             }
             setTimeout(function() {
                 doDismiss(false);
-            }, 1500);
+            }, 800);
         }
 
         function doDismiss(isImmediate) {
             if (dismissed) return;
             dismissed = true;
+            window.__introInlineActive = false;
             try { vid.pause(); } catch(e) {}
             if (overlay) {
                 overlay.style.setProperty('display', 'none', 'important');
@@ -1498,31 +1500,19 @@
             }
         };
 
-        // 3. Video completion handlers with smooth fade out
+        // 3. Video completion handlers: play until the video completely finishes
         vid.onended = function() {
-            doDismiss(false);
+            startFadeOut();
         };
 
         vid.ontimeupdate = function() {
             var dur = vid.duration;
             var cur = vid.currentTime;
-            var effectiveDur = (isFinite(dur) && dur > 0) ? dur : 6.75;
+            var effectiveDur = (isFinite(dur) && dur > 0) ? dur : 6.76;
 
-            // Trigger smooth 1.5s visual fade out at ~5.2s (1.55s before end)
-            if (cur >= effectiveDur - 1.55 && !fadeStarted) {
+            // Trigger smooth fade out ONLY at the very end of the video
+            if (cur >= effectiveDur - 0.08 && !fadeStarted) {
                 startFadeOut();
-            }
-
-            // Smooth audio fade down during visual fade
-            if (fadeStarted && vid && !vid.muted) {
-                var remaining = Math.max(0, effectiveDur - cur);
-                var progress = Math.min(1, Math.max(0, 1 - (remaining / 1.55)));
-                vid.volume = Math.max(0, 1 - progress);
-            }
-
-            // Finalize dismissal at end
-            if (cur >= effectiveDur - 0.05) {
-                doDismiss(false);
             }
         };
 
@@ -1530,16 +1520,19 @@
             doDismiss(true);
         };
 
-        // 4. Watchdog & Max Duration Timers
+        // 4. Safety Watchdog: Only dismiss if video NEVER started playing at all after 8 seconds
         setTimeout(function() {
-            if (!dismissed && (vid.paused || vid.currentTime === 0)) {
+            if (!dismissed && (vid.paused && vid.currentTime === 0)) {
                 doDismiss(true);
             }
-        }, 3000);
+        }, 8000);
 
+        // Absolute Safety Timeout: 15 seconds (allows video plenty of time to buffer and play all 6.76s)
         setTimeout(function() {
-            doDismiss(false);
-        }, 7500);
+            if (!dismissed) {
+                doDismiss(false);
+            }
+        }, 15000);
     })();
     </script>
 
