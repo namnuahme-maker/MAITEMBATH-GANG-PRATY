@@ -206,6 +206,15 @@ function proxyVideoStream(streamUrl, req, res, cacheKey, redirectsLeft = 5) {
     return;
   }
 
+  let client;
+  try {
+    const parsed = new URL(streamUrl);
+    client = parsed.protocol === 'http:' ? http : https;
+  } catch (urlErr) {
+    if (!res.headersSent) res.status(400).end('Invalid stream URL');
+    return;
+  }
+
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
     'Accept': '*/*',
@@ -215,35 +224,45 @@ function proxyVideoStream(streamUrl, req, res, cacheKey, redirectsLeft = 5) {
     headers['Range'] = req.headers.range;
   }
 
-  const client = streamUrl.startsWith('http:') ? http : https;
-  const upstreamReq = client.get(streamUrl, { headers }, (upstreamRes) => {
-    if ([301, 302, 303, 307, 308].includes(upstreamRes.statusCode) && upstreamRes.headers.location) {
-      upstreamRes.resume();
-      const nextUrl = new URL(upstreamRes.headers.location, streamUrl).toString();
-      return proxyVideoStream(nextUrl, req, res, cacheKey, redirectsLeft - 1);
-    }
-
-    if (upstreamRes.statusCode === 403 || upstreamRes.statusCode === 410) {
-      streamUrlCache.delete(cacheKey);
-    }
-
-    if (!res.headersSent) {
-      const forwardHeaders = {
-        'Content-Type': upstreamRes.headers['content-type'] || 'video/mp4',
-        'Accept-Ranges': upstreamRes.headers['accept-ranges'] || 'bytes',
-        'Cache-Control': 'no-cache'
-      };
-      if (upstreamRes.headers['content-length']) {
-        forwardHeaders['Content-Length'] = upstreamRes.headers['content-length'];
+  let upstreamReq;
+  try {
+    upstreamReq = client.get(streamUrl, { headers }, (upstreamRes) => {
+      if ([301, 302, 303, 307, 308].includes(upstreamRes.statusCode) && upstreamRes.headers.location) {
+        upstreamRes.resume();
+        try {
+          const nextUrl = new URL(upstreamRes.headers.location, streamUrl).toString();
+          return proxyVideoStream(nextUrl, req, res, cacheKey, redirectsLeft - 1);
+        } catch (redirErr) {
+          if (!res.headersSent) res.status(502).end('Invalid redirect URL');
+          return;
+        }
       }
-      if (upstreamRes.headers['content-range']) {
-        forwardHeaders['Content-Range'] = upstreamRes.headers['content-range'];
-      }
-      res.writeHead(upstreamRes.statusCode || 200, forwardHeaders);
-    }
 
-    upstreamRes.pipe(res);
-  });
+      if (upstreamRes.statusCode === 403 || upstreamRes.statusCode === 410) {
+        streamUrlCache.delete(cacheKey);
+      }
+
+      if (!res.headersSent) {
+        const forwardHeaders = {
+          'Content-Type': upstreamRes.headers['content-type'] || 'video/mp4',
+          'Accept-Ranges': upstreamRes.headers['accept-ranges'] || 'bytes',
+          'Cache-Control': 'no-cache'
+        };
+        if (upstreamRes.headers['content-length']) {
+          forwardHeaders['Content-Length'] = upstreamRes.headers['content-length'];
+        }
+        if (upstreamRes.headers['content-range']) {
+          forwardHeaders['Content-Range'] = upstreamRes.headers['content-range'];
+        }
+        res.writeHead(upstreamRes.statusCode || 200, forwardHeaders);
+      }
+
+      upstreamRes.pipe(res);
+    });
+  } catch (getErr) {
+    if (!res.headersSent) res.status(502).end('Failed to request stream');
+    return;
+  }
 
   upstreamReq.on('error', (err) => {
     console.error(`Direct stream proxy error (${cacheKey}):`, err.message);
@@ -526,18 +545,23 @@ function parseCoordPair(str) {
 }
 
 async function geocodePlaceName(query) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=th`;
-  const resp = await fetch(url, {
-    signal: AbortSignal.timeout(6000),
-    headers: { 'User-Agent': 'MaitembathGangParty/1.0' }
-  });
-  const list = await resp.json();
-  if (Array.isArray(list) && list.length > 0) {
-    return {
-      lat: parseFloat(list[0].lat),
-      lon: parseFloat(list[0].lon),
-      name: list[0].display_name.split(',').slice(0, 3).join(', ')
-    };
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=th`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'MaitembathGangParty/1.0' }
+    });
+    if (!resp.ok) return null;
+    const list = await resp.json();
+    if (Array.isArray(list) && list.length > 0) {
+      return {
+        lat: parseFloat(list[0].lat),
+        lon: parseFloat(list[0].lon),
+        name: list[0].display_name.split(',').slice(0, 3).join(', ')
+      };
+    }
+  } catch (e) {
+    console.warn('[geocodePlaceName] Fetch failed:', e.message);
   }
   return null;
 }
@@ -759,6 +783,30 @@ function recordPlayedVideo(videoObj, addToHistory = true) {
   if (state.history.length > 50) {
     state.history.length = 50;
   }
+}
+
+function wouldBeConsecutiveDuplicate(videoId) {
+  if (!videoId || typeof videoId !== 'string') return false;
+
+  // If queue has items, check against the last item in the queue
+  if (Array.isArray(state.queue) && state.queue.length > 0) {
+    const lastItem = state.queue[state.queue.length - 1];
+    if (lastItem && lastItem.videoId === videoId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function hasConsecutiveDuplicatesInQueue(queue) {
+  if (!Array.isArray(queue) || queue.length <= 1) return false;
+  for (let i = 1; i < queue.length; i++) {
+    if (queue[i].videoId && queue[i].videoId === queue[i - 1].videoId) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const AUTO_DJ_MODES = {
@@ -1125,7 +1173,8 @@ async function findYoutubeMatchForTrack(title, artist) {
   const yt = await getInnertube();
   const query = artist && artist !== 'Spotify' ? `${title} - ${artist}` : title;
   const search = await yt.search(query);
-  const video = search.videos.find(v => v.id && v.id.length === 11);
+  const videos = Array.isArray(search?.videos) ? search.videos : [];
+  const video = videos.find(v => v && typeof v.id === 'string' && v.id.length === 11);
   if (!video) return null;
   return {
     videoId: video.id,
@@ -1223,9 +1272,17 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
     const search = await yt.search(searchQuery);
     const videos = Array.isArray(search?.videos) ? search.videos : [];
 
-    // Filter out already played videos and long 1-hour compilations / very short clips
+    // Filter out already played videos, consecutive duplicates, and long compilations
+    const isAutoDjConsecutiveDuplicate = (vid) => {
+      if (!vid) return true;
+      if (wouldBeConsecutiveDuplicate(vid)) return true;
+      if (lastPlayedVideoInfo && lastPlayedVideoInfo.videoId === vid) return true;
+      return false;
+    };
+
     const isGoodSingleTrack = (v) => {
       if (!v || typeof v.id !== 'string' || v.id.length !== 11) return false;
+      if (isAutoDjConsecutiveDuplicate(v.id)) return false;
       if (recentPlayedIds.includes(v.id)) return false;
       const t = v.title?.text || v.title?.runs?.[0]?.text || '';
       if (/รวมเพลง|1\s*ชั่วโมง|2\s*ชั่วโมง|1\s*hour|nonstop|full\s*album|ยาวๆ/i.test(t)) return false;
@@ -1236,10 +1293,10 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
 
     let candidates = videos.filter(isGoodSingleTrack);
     if (candidates.length === 0) {
-      candidates = videos.filter(v => v && typeof v.id === 'string' && v.id.length === 11 && !recentPlayedIds.includes(v.id));
+      candidates = videos.filter(v => v && typeof v.id === 'string' && v.id.length === 11 && !recentPlayedIds.includes(v.id) && !isAutoDjConsecutiveDuplicate(v.id));
     }
     if (candidates.length === 0) {
-      candidates = videos.filter(v => v && typeof v.id === 'string' && v.id.length === 11);
+      candidates = videos.filter(v => v && typeof v.id === 'string' && v.id.length === 11 && !isAutoDjConsecutiveDuplicate(v.id));
     }
     if (candidates.length === 0) return;
 
@@ -1328,6 +1385,7 @@ function broadcastState() {
 io.on('connection', async (socket) => {
   console.log(`A user connected: ${socket.id}`);
   connectedUsers[socket.id] = { name: 'สมาชิกรถ', color: '#ABD2FA', avatar: null };
+  socket.broadcast.emit('users-update', connectedUsers);
   broadcastVoteSkip();
 
   const qrDataUrl = await getJoinQrDataUrl();
@@ -1395,7 +1453,8 @@ io.on('connection', async (socket) => {
         for (const track of spData.tracks) {
           try {
             const match = await findYoutubeMatchForTrack(track.title, track.artist);
-            if (!match) continue;
+            if (!match || !match.videoId) continue;
+            if (wouldBeConsecutiveDuplicate(match.videoId)) continue;
 
             const displayTitle = track.artist && track.artist !== 'Spotify'
               ? `${track.title} - ${track.artist}`
@@ -1476,6 +1535,11 @@ io.on('connection', async (socket) => {
     socket.emit('add-queue-status', { loading: true });
     try {
       const meta = searchMeta || await getYoutubeMetadata(videoId);
+
+      if (wouldBeConsecutiveDuplicate(videoId)) {
+        socket.emit('add-queue-status', { loading: false });
+        return socket.emit('error-msg', 'ห้ามเล่นเพลงซ้ำติดต่อกัน 2 รอบ (กรุณารอให้มีเพลงอื่นเล่นคั่นก่อน)');
+      }
 
       state.queue.push({
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
@@ -1611,6 +1675,13 @@ io.on('connection', async (socket) => {
         state.queue.every((item, i) => item.id === newQueue[i].id);
       if (isSameOrder) return;
 
+      // Check if reordered queue introduces consecutive duplicates
+      if (hasConsecutiveDuplicatesInQueue(newQueue)) {
+        socket.emit('error-msg', 'ไม่สามารถจัดคิวให้เพลงซ้ำเล่นติดต่อกันได้ (ห้ามเพลงซ้ำติดต่อกัน 2 รอบ)');
+        broadcastState();
+        return;
+      }
+
       state.queue = newQueue;
 
       // Prefetch stream for the new top track if changed
@@ -1651,9 +1722,19 @@ io.on('connection', async (socket) => {
       // If item is already at boundary (e.g. index 0 moving up, last item moving down)
       if (targetIdx === idx) return;
 
-      // Atomic move
-      const [item] = state.queue.splice(idx, 1);
-      state.queue.splice(targetIdx, 0, item);
+      // Check if moving this item results in consecutive duplicates
+      const testQueue = [...state.queue];
+      const [item] = testQueue.splice(idx, 1);
+      testQueue.splice(targetIdx, 0, item);
+
+      if (hasConsecutiveDuplicatesInQueue(testQueue)) {
+        socket.emit('error-msg', 'ไม่สามารถย้ายให้เพลงซ้ำเล่นติดต่อกันได้ (ห้ามเพลงซ้ำติดต่อกัน 2 รอบ)');
+        broadcastState();
+        return;
+      }
+
+      // Apply valid move
+      state.queue = testQueue;
 
       // Prefetch stream if moved to top
       if (state.queue[0]?.videoId) {
@@ -1684,6 +1765,9 @@ io.on('connection', async (socket) => {
 
   socket.on('seek-to', (seconds) => {
     if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) return;
+    if (state.duration > 0 && seconds > state.duration) {
+      seconds = state.duration;
+    }
     state.currentTime = seconds;
     io.emit('seek-video', seconds);
   });
