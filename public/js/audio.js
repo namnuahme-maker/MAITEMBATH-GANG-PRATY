@@ -45,6 +45,7 @@ let introCrossfadeStarted = false;
 let introPrestartedNext = false;
 let introFadeAudioInterval = null;
 let introAutoTimer = null;
+let introWatchdogTimer = null;
 let warpAnimId = null;
 let warpStars = [];
 let isWarpingExit = false;
@@ -270,12 +271,17 @@ export function dismissIntro(isReplay = false, isImmediateSkip = false) {
     if (introDismissed) return;
     introDismissed = true;
     clearTimeout(introAutoTimer);
+    clearTimeout(introWatchdogTimer);
+    introAutoTimer = null;
+    introWatchdogTimer = null;
     clearInterval(introFadeAudioInterval);
     introFadeAudioInterval = null;
     isWarpingExit = true;
 
     const overlay = $('intro-overlay');
     const introVid = $('intro-video');
+    const tapPrompt = $('intro-tap-prompt');
+    if (tapPrompt) tapPrompt.classList.add('hidden');
 
     if (isImmediateSkip) {
         if (overlay) {
@@ -330,9 +336,16 @@ export function startIntroSequence(isReplay = false) {
     introSoundPlayed = false;
     clearInterval(introFadeAudioInterval);
     introFadeAudioInterval = null;
+    clearTimeout(introAutoTimer);
+    clearTimeout(introWatchdogTimer);
+    introAutoTimer = null;
+    introWatchdogTimer = null;
 
     const overlay = $('intro-overlay');
     if (!overlay) return;
+
+    const tapPrompt = $('intro-tap-prompt');
+    if (tapPrompt) tapPrompt.classList.add('hidden');
 
     overlay.classList.remove('intro-exit', 'intro-fast-exit');
     overlay.style.display = 'flex';
@@ -345,18 +358,69 @@ export function startIntroSequence(isReplay = false) {
 
     const introVid = $('intro-video');
     const unmuteHint = $('intro-unmute-hint');
+
+    // Robust user interaction handler to unpause, unmute, and unlock audio
+    const handleUserInteraction = () => {
+        unlockAudioSystem();
+        if (tapPrompt) tapPrompt.classList.add('hidden');
+        if (introVid) {
+            introVid.muted = false;
+            if (introVid.paused) {
+                introVid.play().catch(() => {
+                    introVid.muted = true;
+                    introVid.play().catch(() => dismissIntro(isReplay, true));
+                });
+            }
+        }
+        if (unmuteHint) unmuteHint.classList.add('hidden');
+    };
+
+    if (tapPrompt && !tapPrompt.dataset.introBound) {
+        tapPrompt.dataset.introBound = 'true';
+        tapPrompt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleUserInteraction();
+        });
+    }
+
+    if (!overlay.dataset.introBound) {
+        overlay.dataset.introBound = 'true';
+        overlay.addEventListener('click', () => {
+            handleUserInteraction();
+        });
+    }
+
     if (introVid) {
+        // Fallback error handler: if video cannot be loaded or decoded, exit cleanly immediately
+        introVid.onerror = (e) => {
+            console.warn('[Intro] Video error encountered, auto-dismissing intro:', e);
+            dismissIntro(isReplay, true);
+        };
+
         try {
             introVid.currentTime = 0;
-            introVid.volume = 1;
-            introVid.muted = false;
+            // Modern Web Policy: Start muted so browser's autoplay engine NEVER blocks frame rendering
+            introVid.muted = true;
+
             const playPromise = introVid.play();
             if (playPromise !== undefined) {
-                playPromise.catch((err) => {
-                    console.warn('[Intro] Autoplay with sound restricted, attempting muted playback:', err);
-                    introVid.muted = true;
-                    if (unmuteHint) unmuteHint.classList.remove('hidden');
-                    introVid.play().catch(() => {});
+                playPromise.then(() => {
+                    // Muted autoplay started successfully! Try unmuting if permitted
+                    try {
+                        introVid.muted = false;
+                        if (introVid.paused) {
+                            // If unmuting caused a pause, fallback to muted + hint
+                            introVid.muted = true;
+                            introVid.play().catch(() => {});
+                            if (unmuteHint) unmuteHint.classList.remove('hidden');
+                        }
+                    } catch (_) {
+                        introVid.muted = true;
+                        if (unmuteHint) unmuteHint.classList.remove('hidden');
+                    }
+                }).catch((err) => {
+                    console.warn('[Intro] Autoplay blocked by browser policy:', err);
+                    if (tapPrompt) tapPrompt.classList.remove('hidden');
                 });
             }
 
@@ -367,7 +431,6 @@ export function startIntroSequence(isReplay = false) {
                 const effectiveDuration = (isFinite(dur) && dur > 0) ? dur : 6.76;
 
                 // Step 1: Pre-start underlying video at ~4.2s (2.5s before end)
-                // This lets the next video start and play for 1-2s in background
                 if (cur >= effectiveDuration - 2.5 && !introPrestartedNext) {
                     introPrestartedNext = true;
                     if (isHostMode() && getState().currentVideo && getState().isPlaying) {
@@ -377,7 +440,6 @@ export function startIntroSequence(isReplay = false) {
                 }
 
                 // Step 2: Trigger smooth visual crossfade at ~5.0s (1.7s before end)
-                // By now, the next video has already been playing for ~1-1.5s
                 if (cur >= effectiveDuration - 1.7 && !introCrossfadeStarted) {
                     triggerIntroCrossfade(isReplay);
                 }
@@ -387,7 +449,8 @@ export function startIntroSequence(isReplay = false) {
                 dismissIntro(isReplay, false);
             };
         } catch (e) {
-            console.warn('[Intro] Video play error:', e);
+            console.warn('[Intro] Video play execution error:', e);
+            dismissIntro(isReplay, true);
         }
     }
 
@@ -401,19 +464,26 @@ export function startIntroSequence(isReplay = false) {
         });
     }
 
-    if (!overlay.dataset.introBound) {
-        overlay.dataset.introBound = 'true';
-        overlay.addEventListener('click', () => {
-            unlockAudioSystem();
-            if (introVid && introVid.muted) {
-                introVid.muted = false;
-                if (unmuteHint) unmuteHint.classList.add('hidden');
+    // Safety Watchdog: If after 2.0s the video has not actually progressed (currentTime === 0 or paused),
+    // display prominent tap-to-start prompt and auto-dismiss if still idle after another 2.5s
+    introWatchdogTimer = setTimeout(() => {
+        if (!introDismissed && (!introVid || introVid.paused || introVid.currentTime === 0)) {
+            console.warn('[Intro] Video stalled or autoplay blocked on startup. Showing prompt.');
+            if (tapPrompt) {
+                tapPrompt.classList.remove('hidden');
+                setTimeout(() => {
+                    if (!introDismissed && (!introVid || introVid.paused || introVid.currentTime === 0)) {
+                        console.warn('[Intro] Watchdog timeout: auto-dismissing stalled intro.');
+                        dismissIntro(isReplay, true);
+                    }
+                }, 2500);
+            } else {
+                dismissIntro(isReplay, true);
             }
-        });
-    }
+        }
+    }, 2000);
 
-    // Safety timeout: video duration is 6.76s; dismiss after 8.0s if not already dismissed
-    clearTimeout(introAutoTimer);
+    // Absolute Maximum safety timeout: video duration is 6.76s; dismiss after 8.0s if not already dismissed
     introAutoTimer = setTimeout(() => {
         if (!introDismissed) {
             dismissIntro(isReplay, false);
@@ -1516,7 +1586,6 @@ export function initAudioSubsystem() {
     }
 
     setupAutoplayUnlock();
-    startIntroSequence(false);
 }
 
 export const initAudio = initAudioSubsystem;

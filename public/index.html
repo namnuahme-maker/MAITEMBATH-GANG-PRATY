@@ -1387,13 +1387,20 @@
 
     <!-- Video Intro Overlay -->
     <div id="intro-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center select-none overflow-hidden bg-black">
-        <video id="intro-video" poster="/intro-poster.jpg" playsinline preload="auto" class="absolute inset-0 w-full h-full object-contain bg-black z-10">
+        <video id="intro-video" poster="/intro-poster.jpg" autoplay muted playsinline preload="auto" class="absolute inset-0 w-full h-full object-contain bg-black z-10">
             <source src="/intro.mp4" type="video/mp4">
-            <source src="/intro.mov" type="video/quicktime">
         </video>
 
         <div id="intro-unmute-hint" class="hidden absolute top-6 z-20 px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-black/70 border border-white/20 backdrop-blur-md animate-pulse">
             <span class="fa-solid fa-volume-xmark mr-1.5 text-cyan-400"></span>แตะที่หน้าจอเพื่อเปิดเสียง
+        </div>
+
+        <div id="intro-tap-prompt" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 cursor-pointer p-4 text-center">
+            <div class="w-16 h-16 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-400 text-2xl mb-3 shadow-lg animate-pulse">
+                <span class="fa-solid fa-play ml-1"></span>
+            </div>
+            <p class="text-base sm:text-lg font-bold text-white">แตะเพื่อเข้าสู่ปาร์ตี้</p>
+            <p class="text-xs text-white/70 mt-1">Maitembath Gang Night Ride</p>
         </div>
 
         <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-20 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
