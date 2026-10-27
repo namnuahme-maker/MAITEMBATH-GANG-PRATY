@@ -176,18 +176,18 @@
         /* CINEMATIC INTRO CROSSFADE SUITE */
         #intro-overlay {
             background: var(--color-paper);
-            transition: opacity 1.7s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: opacity 0.4s ease-out;
             will-change: opacity;
         }
         #intro-overlay.intro-exit {
             opacity: 0 !important;
             pointer-events: none !important;
-            transition: opacity 1.7s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            transition: opacity 0.4s ease-out !important;
         }
         #intro-overlay.intro-fast-exit {
             opacity: 0 !important;
             pointer-events: none !important;
-            transition: opacity 0.35s ease-out !important;
+            transition: opacity 0.15s ease-out !important;
         }
         #player-area.player-crossfade-in {
             animation: playerCrossfadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1229,8 +1229,8 @@
         }
 
         #btn-skip-intro {
-            background: var(--color-paper-2); !important;
-            border: 1px solid var(--color-rule); !important;
+            background: var(--color-paper-2) !important;
+            border: 1px solid var(--color-rule) !important;
             color: var(--color-ink) !important;
             font-size: 0.8125rem !important;
             font-weight: 600 !important;
@@ -1243,8 +1243,8 @@
         }
 
         #btn-skip-intro:hover {
-            background: var(--color-paper-3); !important;
-            border-color: var(--color-accent); !important;
+            background: var(--color-paper-3) !important;
+            border-color: var(--color-accent) !important;
             color: var(--color-ink) !important;
             transform: translateY(-1px) scale(1.02);
             box-shadow: var(--shadow-glow-sm) !important;
@@ -1391,19 +1391,13 @@
             <source src="/intro.mp4" type="video/mp4">
         </video>
 
-        <div id="intro-unmute-hint" class="hidden absolute top-6 z-20 px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-black/70 border border-white/20 backdrop-blur-md animate-pulse">
-            <span class="fa-solid fa-volume-xmark mr-1.5 text-cyan-400"></span>แตะที่หน้าจอเพื่อเปิดเสียง
-        </div>
+        <!-- Prominent Sound Toggle Pill -->
+        <button id="intro-unmute-btn" type="button" class="absolute top-8 z-30 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-white bg-cyan-600/90 hover:bg-cyan-500 border border-cyan-400/40 shadow-lg flex items-center gap-2 cursor-pointer transition active:scale-95 animate-pulse" title="แตะเพื่อเปิดเสียง">
+            <span class="fa-solid fa-volume-high text-sm"></span>
+            <span>แตะหน้าจอเพื่อเปิดเสียง</span>
+        </button>
 
-        <div id="intro-tap-prompt" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 cursor-pointer p-4 text-center">
-            <div class="w-16 h-16 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-400 text-2xl mb-3 shadow-lg animate-pulse">
-                <span class="fa-solid fa-play ml-1"></span>
-            </div>
-            <p class="text-base sm:text-lg font-bold text-white">แตะเพื่อเข้าสู่ปาร์ตี้</p>
-            <p class="text-xs text-white/70 mt-1">Maitembath Gang Night Ride</p>
-        </div>
-
-        <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-20 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
+        <button id="btn-skip-intro" type="button" class="absolute bottom-6 right-6 z-30 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95" aria-label="ข้ามหน้าอินโทรเพื่อเริ่มใช้งาน">
             <span>ข้ามอินโทร</span>
             <span class="fa-solid fa-forward-step text-xs"></span>
         </button>
