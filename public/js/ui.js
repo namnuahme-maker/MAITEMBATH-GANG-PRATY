@@ -161,22 +161,12 @@ export function showToast(msg, type = 'info', action = null) {
         toast.classList.remove('translate-y-2', 'opacity-0');
     }, 10);
 
-    if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
-        wakeTheaterPanel('toast');
-    }
-
     const duration = action ? 7000 : 3500;
     setTimeout(() => {
         if (toast.isConnected) {
             toast.classList.add('opacity-0', '-translate-y-2');
             setTimeout(() => {
                 toast.remove();
-                if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
-                    const tc = $('toast-container');
-                    if (!tc || tc.children.length === 0) {
-                        scheduleTheaterCollapse(THEATER_IDLE_DELAY);
-                    }
-                }
             }, 300);
         }
     }, duration);
@@ -1249,6 +1239,90 @@ export function toggleTheaterMode(forceState = null) {
     }
 }
 
+/**
+ * Show a sleek sliding toast notification from the right edge of screen when a new song is queued in Theater Mode
+ * @param {object} track - Track metadata ({ title, videoId, thumbnail, addedBy, color, avatar })
+ */
+export function showTheaterSongToast(track) {
+    if (!track || typeof document === 'undefined') return;
+
+    let container = $('theater-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'theater-toast-container';
+        container.className = 'fixed top-6 right-6 z-[1000] flex flex-col gap-3 pointer-events-none';
+        document.body.appendChild(container);
+    }
+
+    const title = track.title || 'เพลงไม่ทราบชื่อ';
+    const userName = track.addedBy || 'เพื่อนในปาร์ตี้';
+    const userColor = safeColor(track.color || '#ABD2FA');
+    const thumbUrl = track.thumbnail || (track.videoId ? `https://i.ytimg.com/vi/${track.videoId}/mqdefault.jpg` : null);
+
+    const thumbHtml = thumbUrl 
+        ? `<img src="${escapeHtml(thumbUrl)}" class="w-full h-full object-cover" alt="Song thumbnail" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+           <div class="w-full h-full hidden items-center justify-center bg-cyan-950/60 text-cyan-400"><i class="fa-solid fa-compact-disc text-xl animate-spin-slow"></i></div>`
+        : `<div class="w-full h-full flex items-center justify-center bg-cyan-950/60 text-cyan-400"><i class="fa-solid fa-compact-disc text-xl animate-spin-slow"></i></div>`;
+
+    const avatarHtml = track.avatar
+        ? `<img src="${escapeHtml(track.avatar)}" class="w-4 h-4 rounded-full object-cover border border-white/20 shrink-0 inline-block" alt="${escapeHtml(userName)}">`
+        : `<span class="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-black shrink-0 inline-block" style="background-color: ${userColor}"><i class="fa-solid fa-user text-[8px]"></i></span>`;
+
+    const card = document.createElement('div');
+    card.className = 'theater-song-card flex items-center gap-3 p-3 sm:p-3.5 bg-black/90 backdrop-blur-2xl border border-cyan-400/40 hover:border-cyan-400 rounded-2xl shadow-2xl shadow-cyan-950/50 text-left pointer-events-auto max-w-[340px] sm:max-w-[400px] cursor-pointer group transition-all duration-300';
+    card.title = 'คลิกเพื่อปิดการแจ้งเตือน';
+
+    card.innerHTML = `
+        <div class="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden bg-slate-900 border border-white/15 shrink-0 flex items-center justify-center shadow-md">
+            ${thumbHtml}
+        </div>
+        <div class="flex-1 min-w-0 pr-1">
+            <div class="flex items-center gap-1.5 mb-1">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-[10px] font-bold text-cyan-300">
+                    <i class="fa-solid fa-music text-[9px] animate-pulse"></i> เพิ่มเพลงใหม่
+                </span>
+                <span class="text-[10px] text-slate-400 font-mono">คิวถัดไป</span>
+            </div>
+            <p class="text-xs sm:text-[13px] font-bold text-white truncate leading-snug drop-shadow-sm group-hover:text-cyan-200 transition-colors">
+                ${escapeHtml(title)}
+            </p>
+            <div class="flex items-center gap-1.5 mt-1 text-[11px] text-slate-300">
+                <span class="text-slate-400 text-[10px]">โดย:</span>
+                ${avatarHtml}
+                <span class="font-semibold truncate" style="color: ${userColor}">
+                    ${escapeHtml(userName)}
+                </span>
+            </div>
+        </div>
+    `;
+
+    card.addEventListener('click', () => {
+        card.classList.remove('theater-song-card-visible');
+        card.classList.add('theater-song-card-hiding');
+        setTimeout(() => card.remove(), 700);
+    });
+
+    container.appendChild(card);
+
+    // Trigger slide-in animation from right edge
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            card.classList.add('theater-song-card-visible');
+        }, 20);
+    });
+
+    // Auto fade and slide away to right after 4.8 seconds
+    setTimeout(() => {
+        if (card.isConnected) {
+            card.classList.remove('theater-song-card-visible');
+            card.classList.add('theater-song-card-hiding');
+            setTimeout(() => {
+                if (card.isConnected) card.remove();
+            }, 700);
+        }
+    }, 4800);
+}
+
 // --- Wire Event Handlers ---
 export function initUI() {
     // Cache references
@@ -1948,23 +2022,47 @@ export function initUI() {
 
     // Reactive State Subscriptions
     let prevQueueLength = -1;
+    let prevQueueIds = new Set();
     let prevTrackId = null;
 
     onStateChange((state) => {
-        // Wake up theater panel on new song added to queue
-        const currentQueueLen = Array.isArray(state?.queue) ? state.queue.length : 0;
+        // Notification for new songs added in Theater Mode
+        const currentQueue = Array.isArray(state?.queue) ? state.queue : [];
+        const currentQueueLen = currentQueue.length;
+
         if (prevQueueLength !== -1 && currentQueueLen > prevQueueLength) {
+            // Find newly added track
+            let newTrack = null;
+            for (let i = currentQueue.length - 1; i >= 0; i--) {
+                const item = currentQueue[i];
+                if (item && item.id && !prevQueueIds.has(item.id)) {
+                    newTrack = item;
+                    break;
+                }
+            }
+            if (!newTrack && currentQueueLen > 0) {
+                newTrack = currentQueue[currentQueueLen - 1];
+            }
+
             if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
-                wakeTheaterPanel('queue-add');
+                if (document.body.classList.contains('theater-collapsed')) {
+                    // In collapsed Theater Mode: show sleek floating card sliding in from right, DO NOT expand 380px panel
+                    if (newTrack) {
+                        showTheaterSongToast(newTrack);
+                    }
+                } else {
+                    scheduleTheaterCollapse();
+                }
             }
         }
         prevQueueLength = currentQueueLen;
+        prevQueueIds = new Set(currentQueue.map(item => item?.id).filter(Boolean));
 
-        // Wake up theater panel on track change
+        // Subtly refresh theater timer on track change without opening heavy 380px sidebar
         const currentTrackId = state?.currentVideo?.id || state?.currentVideo?.videoId;
         if (prevTrackId && currentTrackId && currentTrackId !== prevTrackId) {
-            if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
-                wakeTheaterPanel('track-change');
+            if (typeof isTheaterModeActive === 'function' && isTheaterModeActive() && !document.body.classList.contains('theater-collapsed')) {
+                scheduleTheaterCollapse();
             }
         }
         prevTrackId = currentTrackId;

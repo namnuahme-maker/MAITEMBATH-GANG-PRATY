@@ -429,6 +429,23 @@
             overflow: hidden !important;
         }
 
+        /* Theater Song Floating Card (Slides in from right edge) */
+        .theater-song-card {
+            transform: translateX(120%);
+            opacity: 0;
+            transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+            will-change: transform, opacity;
+        }
+        .theater-song-card.theater-song-card-visible {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        .theater-song-card.theater-song-card-hiding {
+            transform: translateX(120%);
+            opacity: 0;
+            transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+        }
+
         @media (min-width: 768px) {
             main > aside {
                 transition: 
@@ -2775,10 +2792,13 @@
     <!-- Toast Notifications (Accessible Live Region) -->
     <div id="toast-container" role="status" aria-live="polite" class="fixed top-4 right-4 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
+    <!-- Theater Mode New Song Toast Region (Slides in from Right) -->
+    <div id="theater-toast-container" role="status" aria-live="polite" class="fixed top-6 right-6 z-[1000] flex flex-col gap-3 pointer-events-none"></div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="/js/main.js?v=34"></script>
-    <script nomodule src="/app.js?v=34"></script>
+    <script type="module" src="/js/main.js?v=35"></script>
+    <script nomodule src="/app.js?v=35"></script>
 </body>
 </html>
