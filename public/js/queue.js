@@ -460,6 +460,24 @@ export function resetSkipBtn() {
     updateSkipButtonState(qLen, Boolean(state?.currentVideo));
 }
 
+export function extractYoutubeId(url) {
+    if (!url || typeof url !== 'string') return null;
+    const str = url.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
+    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
+}
+
+export function wouldBeConsecutiveDuplicate(videoId) {
+    if (!videoId || typeof videoId !== 'string') return false;
+    const state = getState();
+    if (Array.isArray(state.queue) && state.queue.length > 0) {
+        const lastItem = state.queue[state.queue.length - 1];
+        if (lastItem && lastItem.videoId === videoId) return true;
+    }
+    return false;
+}
+
 // --- Wire Event Handlers ---
 export function initQueueUI() {
     queueList = $('queue-list');
@@ -477,24 +495,6 @@ export function initQueueUI() {
     voteSkipLabel = $('vote-skip-label');
 
     setupReorderListeners();
-
-function extractYoutubeId(url) {
-    if (!url || typeof url !== 'string') return null;
-    const str = url.trim();
-    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
-    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/);
-    return match ? match[1] : null;
-}
-
-export function wouldBeConsecutiveDuplicate(videoId) {
-    if (!videoId || typeof videoId !== 'string') return false;
-    const state = getState();
-    if (Array.isArray(state.queue) && state.queue.length > 0) {
-        const lastItem = state.queue[state.queue.length - 1];
-        if (lastItem && lastItem.videoId === videoId) return true;
-    }
-    return false;
-}
 
     // 1. Add Song Action
     const handleAddSong = () => {

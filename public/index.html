@@ -31,11 +31,21 @@
                             hover: '#0284c7'
                         },
                         secondary: '#10B981',
-                        neutral: '#94a3b8',
+                        neutral: '#a1a1aa',
                         brand: {
-                            deep: '#0c111c',
+                            deep: '#000000',
+                            card: '#09090b',
+                            surface: '#121215',
                             light: '#f8fafc',
                             peri: '#00E5FF'
+                        },
+                        slate: {
+                            700: '#27272a',
+                            750: '#1f1f23',
+                            800: '#18181b',
+                            850: '#121215',
+                            900: '#0c0c0e',
+                            950: '#050506'
                         },
                         cyan: {
                             400: '#38bdf8',
@@ -52,6 +62,7 @@
             overflow-x: clip;
             background-color: var(--color-paper);
             color: var(--color-ink);
+            color-scheme: dark;
         }
         * { font-family: var(--font-body); }
         h1, h2, h3, h4, .font-display {
@@ -398,6 +409,70 @@
                 transform 0.52s cubic-bezier(0.4, 0, 0.2, 1),
                 filter 0.52s cubic-bezier(0.4, 0, 0.2, 1),
                 visibility 0s linear 0.52s !important;
+        }
+
+        /* --- Theater Mode Smart Auto-Fade System --- */
+        body.theater-mode header {
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+        }
+
+        body.theater-mode.theater-collapsed header {
+            transform: translateY(-100%) !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        @media (min-width: 768px) {
+            main > aside {
+                transition: 
+                    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), 
+                    margin-right 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+                    opacity 0.5s ease,
+                    visibility 0s linear 0s;
+                will-change: transform, margin-right, opacity;
+            }
+
+            body.theater-mode.theater-collapsed main > aside {
+                transform: translateX(100%) !important;
+                margin-right: -380px !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                visibility: hidden !important;
+                transition: 
+                    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), 
+                    margin-right 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+                    opacity 0.5s ease,
+                    visibility 0s linear 0.65s !important;
+            }
+
+            #player-area {
+                transition: flex 0.65s cubic-bezier(0.16, 1, 0.3, 1), width 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+
+            body.theater-mode.theater-collapsed #player-area {
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+        }
+
+        @media (max-width: 767px) {
+            main > aside {
+                transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+            }
+
+            body.theater-mode.theater-collapsed main > aside {
+                transform: translateY(100%) !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                visibility: hidden !important;
+            }
+
+            body.theater-mode.theater-collapsed #player-area {
+                height: 100% !important;
+                max-height: 100vh !important;
+                flex: 1 1 100% !important;
+            }
         }
 
         /* Map & Weather Radar Panel (#radar-nav-panel) overlaid on the exact same slot as Control Panel */
@@ -1567,8 +1642,7 @@
                         <i id="settings-gear-icon" class="fa-solid fa-gear text-sm transition-transform duration-300"></i>
                     </div>
                     <div>
-                        <h2 class="text-base font-bold text-white leading-tight">การตั้งค่า & ปรับแต่งโปรไฟล์</h2>
-                        <p class="text-[10px] text-slate-400">ตั้งค่าผู้ใช้งาน เสียงแจ้งเตือน และระบบนำทาง</p>
+                        <h2 class="text-base font-bold text-white leading-tight">การตั้งค่า</h2>
                     </div>
                 </div>
                 <button id="close-settings-btn" class="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-white/[0.08] flex items-center justify-center text-xs transition active:scale-90">
@@ -1581,7 +1655,7 @@
                 <!-- 1. Profile Customization -->
                 <div class="space-y-3.5 pb-4 border-b border-white/[0.08]">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-xs font-bold text-cyan-400 flex items-center gap-1.5"><span class="fa-solid fa-user-pen"></span> ปรับแต่งโปรไฟล์ของคุณ
+                        <h3 class="text-xs font-bold text-cyan-400 flex items-center gap-1.5"><span class="fa-solid fa-user-pen"></span> โปรไฟล์
                         </h3>
                         <div class="flex items-center gap-1.5">
                             <div class="w-5 h-5 rounded-full overflow-hidden border border-cyan-400/50 bg-white/5 flex items-center justify-center shrink-0">
@@ -1609,7 +1683,7 @@
 
                             <!-- Avatar Actions -->
                             <div class="flex-1 min-w-0 space-y-1.5">
-                                <p class="text-xs font-semibold text-white">รูปโปรไฟล์ (Profile Picture)</p>
+                                <p class="text-xs font-semibold text-white">รูปโปรไฟล์</p>
                                 <div class="flex flex-wrap items-center gap-2">
                                     <label for="settings-avatar-file" class="text-[11px] font-semibold px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 hover:text-white cursor-pointer transition flex items-center gap-1.5 shadow-md shadow-cyan-500/20 active:scale-95">
                                         <i class="fa-solid fa-cloud-arrow-up text-[10px]"></i>
@@ -1627,7 +1701,7 @@
                         <div class="pt-2 border-t border-white/[0.04]">
                             <p class="text-[10px] text-slate-400 mb-1.5 flex items-center gap-1">
                                 <i class="fa-solid fa-wand-magic-sparkles text-cyan-400 text-[9px]"></i>
-                                <span>หรือเลือกรูปสำเร็จรูปนีออน:</span>
+                                <span>รูปสำเร็จรูป:</span>
                             </p>
                             <div id="avatar-presets-grid" class="flex flex-wrap items-center gap-2">
                                 <!-- Injected via JavaScript from AVATAR_PRESETS -->
@@ -1637,12 +1711,12 @@
 
                     <div class="space-y-2.5">
                         <div>
-                            <label class="text-[10px] text-slate-400 block mb-1">ชื่อเล่นที่แสดงในห้องปาร์ตี้</label>
-                            <input id="settings-name" type="text" maxlength="25" placeholder="ใส่ชื่อเล่นของคุณ..." class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-cyan-400/60 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition">
+                            <label class="text-[10px] text-slate-400 block mb-1">ชื่อเล่น</label>
+                            <input id="settings-name" type="text" maxlength="25" placeholder="ใส่ชื่อเล่น..." class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-cyan-400/60 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition">
                         </div>
                         <div class="flex items-center justify-between gap-2 pt-1">
                             <div class="flex items-center gap-2">
-                                <label class="text-[10px] text-slate-400">สีประจำตัว:</label>
+                                <label class="text-[10px] text-slate-400">สี:</label>
                                 <input id="settings-color" type="color" value="#00E5FF" class="w-7 h-7 rounded-full cursor-pointer bg-transparent border-0 p-0">
                             </div>
                             <div class="flex items-center gap-1.5">
@@ -1656,29 +1730,28 @@
                         </div>
                     </div>
                     <button id="save-profile-btn" class="w-full bg-cyan-400 hover:bg-cyan-300 text-black font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-400/20 active:scale-95">
-                        <i class="fa-solid fa-floppy-disk"></i> บันทึกโปรไฟล์
+                        <i class="fa-solid fa-floppy-disk"></i> บันทึก
                     </button>
                 </div>
 
                 <!-- 2. Auto-DJ Continuous Playback & Mood Mode -->
                 <div class="space-y-3 pb-4 border-b border-brand-deep/40">
                     <div class="flex items-center justify-between gap-2">
-                        <h3 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5"><span class="fa-solid fa-wand-magic-sparkles text-brand-peri"></span> ระบบ Auto-DJ เล่นต่อเนื่องเมื่อคิวหมด
+                        <h3 class="text-xs font-semibold text-brand-peri flex items-center gap-1.5"><span class="fa-solid fa-wand-magic-sparkles text-brand-peri"></span> Auto-DJ
                         </h3>
                         <span id="autodj-status-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-brand-deep/60 text-brand-peri border border-brand-peri/30 font-medium">เปิดอยู่ • โหมดเคลิ้มๆ</span>
                     </div>
 
                     <label class="flex items-center justify-between py-1 cursor-pointer">
                         <div>
-                            <p class="text-xs text-white font-medium">เปิดใช้งาน Auto-DJ อัตโนมัติ</p>
-                            <p class="text-[10px] text-brand-light/55">สุ่มหาเพลงเล่นต่อทันทีเมื่อเพลงในคิวหมด ไม่ให้ห้องเงียบ</p>
+                            <p class="text-xs text-white font-medium">เปิดใช้งานอัตโนมัติ</p>
                         </div>
                         <input type="checkbox" id="settings-autodj-toggle" checked class="w-4 h-4 rounded accent-brand-peri cursor-pointer">
                     </label>
 
                     <div id="autodj-options-wrap" class="space-y-2.5 pt-2 border-t border-brand-deep/40">
                         <div class="flex items-center justify-between gap-2">
-                            <span class="text-[11px] text-brand-light/85 font-medium">เลือกโหมดอารมณ์ / แนวเพลง:</span>
+                            <span class="text-[11px] text-brand-light/85 font-medium">แนวเพลง:</span>
                             <select id="settings-autodj-mode" class="bg-primary border border-brand-deep/60 text-brand-peri text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-brand-peri">
                                 <option value="khlerm">Chill & Dreamy</option>
                                 <option value="similar">Smart Match</option>
@@ -1721,9 +1794,9 @@
 
                         <!-- Optional Custom Keyword / Artist -->
                         <div class="pt-1 space-y-1">
-                            <label class="text-[10px] text-brand-light/65 block">ระบุแนวเพลง/ชื่อศิลปินเฉพาะเจาะจง (เว้นว่างเพื่อใช้โหมดด้านบน):</label>
+                            <label class="text-[10px] text-brand-light/65 block">ศิลปิน / แนวเพลงเฉพาะ:</label>
                             <div class="flex gap-1.5">
-                                <input id="settings-autodj-custom" type="text" maxlength="50" placeholder="เช่น เพลงเศร้าเคลิ้มๆ, POLYCAT, Safeplanet..." class="flex-1 bg-primary border border-brand-deep/60 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-brand-light/35 focus:outline-none focus:border-brand-peri">
+                                <input id="settings-autodj-custom" type="text" maxlength="50" placeholder="เช่น POLYCAT, Three Man Down..." class="flex-1 bg-primary border border-brand-deep/60 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-brand-light/35 focus:outline-none focus:border-brand-peri">
                                 <button id="settings-autodj-custom-btn" type="button" class="px-2.5 py-1.5 rounded-lg bg-brand-deep/70 hover:bg-brand-deep border border-brand-peri/40 text-brand-peri text-[11px] font-medium transition shrink-0">
                                     ตั้งค่า
                                 </button>
@@ -1732,7 +1805,7 @@
 
                         <!-- Play Auto-DJ Immediately Button -->
                         <button id="settings-autodj-play-now-btn" type="button" class="w-full bg-slate-900 hover:bg-brand-deep/80 border border-brand-peri/40 text-brand-light hover:text-white rounded-lg py-2 px-3 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm">
-                            <i class="fa-solid fa-shuffle text-brand-peri"></i> สุ่มเปิดเพลงโหมดนี้ทันที
+                            <i class="fa-solid fa-shuffle text-brand-peri"></i> สุ่มเปิดเพลงทันที
                         </button>
                     </div>
                 </div>
@@ -1959,7 +2032,6 @@
             <div class="min-w-0">
                 <h1 class="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2 truncate">
                     <span class="truncate">MAITEMBATH</span>
-                    <span class="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold hidden sm:inline shrink-0">Party</span>
                 </h1>
             </div>
         </div>
@@ -1990,11 +2062,6 @@
             <button id="header-qr-btn" class="h-8 px-2.5 rounded-full text-xs font-medium text-slate-300 hover:text-cyan-300 hover:bg-white/[0.08] transition flex items-center gap-1.5 active:scale-95" title="เปิด QR Code ปาร์ตี้เต็มจอ (สำหรับให้เพื่อนสแกน)">
                 <i class="fa-solid fa-qrcode text-cyan-400 text-xs"></i>
                 <span class="hidden lg:inline text-[11px]">QR ปาร์ตี้</span>
-            </button>
-
-            <!-- Genesis Theme Switcher (Light / Dark) -->
-            <button id="theme-toggle-btn" class="w-8 h-8 rounded-full text-slate-400 hover:text-indigo-400 hover:bg-white/[0.08] transition flex items-center justify-center text-xs active:scale-95" title="สลับธีม สว่าง / มืด (Genesis Light & Dark)">
-                <i id="theme-toggle-icon" class="fa-solid fa-moon text-xs"></i>
             </button>
 
             <!-- Settings Button -->
@@ -2039,42 +2106,39 @@
             <div id="empty-state" class="absolute inset-0 bg-[var(--genesis-bg)] flex flex-col items-center justify-center p-4 sm:p-6 z-10 transition-colors duration-200 duration-500 overflow-y-auto select-none">
                 <div class="max-w-lg w-full text-center space-y-3 sm:space-y-4 my-auto">
                     <!-- Brand Icon & Greeting -->
-                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 mx-auto flex items-center justify-center text-lg sm:text-xl shadow-sm">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-cyan-400/10 border border-cyan-400/20 text-cyan-400 mx-auto flex items-center justify-center text-lg sm:text-xl shadow-sm">
                         <i class="fa-solid fa-music"></i>
                     </div>
                     <div>
-                        <h3 class="text-lg sm:text-xl font-bold text-[var(--genesis-text-primary)]">ยินดีต้อนรับสู่ MAITEMBATH GANG PARTY</h3>
-                        <p class="text-xs sm:text-sm text-[var(--genesis-text-secondary)] mt-1 font-medium">ระบบเล่นเพลงและคาราโอเกะร่วมกันในกลุ่มเพื่อน</p>
+                        <h3 class="text-lg sm:text-xl font-bold text-white tracking-tight">MAITEMBATH PARTY</h3>
+                        <p class="text-xs sm:text-sm text-slate-400 mt-1 font-medium">เปิดเพลง คาราโอเกะ สนุกด้วยกัน</p>
                     </div>
 
-                    <!-- 3-Step Onboarding Sequence -->
+                    <!-- 3-Step Sequence -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left pt-1 sm:pt-2">
-                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] shadow-sm">
-                            <span class="inline-block text-xs font-mono font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mb-1">1. เพิ่มเพลง</span>
-                            <p class="text-sm font-semibold text-[var(--genesis-text-primary)]">ค้นหา / วางลิงก์</p>
-                            <p class="text-xs text-[var(--genesis-text-secondary)] mt-1 leading-relaxed">พิมพ์ชื่อเพลง หรือวางลิงก์ YouTube/Spotify ที่ช่องด้านขวา</p>
+                        <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 shadow-sm">
+                            <span class="inline-block text-xs font-mono font-bold text-cyan-400 mb-1">1. เพิ่มเพลง</span>
+                            <p class="text-xs text-slate-400">ค้นหาหรือวางลิงก์เพลง</p>
                         </div>
-                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] shadow-sm">
-                            <span class="inline-block text-xs font-mono font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mb-1">2. ชวนเพื่อน</span>
-                            <p class="text-sm font-semibold text-[var(--genesis-text-primary)]">สแกน QR Code</p>
-                            <p class="text-xs text-[var(--genesis-text-secondary)] mt-1 leading-relaxed">ให้เพื่อนสแกนเพื่อช่วยกันต่อคิวและโหวตเพลงจากมือถือ</p>
+                        <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 shadow-sm">
+                            <span class="inline-block text-xs font-mono font-bold text-cyan-400 mb-1">2. ชวนเพื่อน</span>
+                            <p class="text-xs text-slate-400">สแกน QR ต่อคิวและโหวต</p>
                         </div>
-                        <div class="p-3.5 rounded-[10px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] shadow-sm">
-                            <span class="inline-block text-xs font-mono font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mb-1">3. เริ่มปาร์ตี้</span>
-                            <p class="text-sm font-semibold text-[var(--genesis-text-primary)]">สนุกต่อเนื่อง</p>
-                            <p class="text-xs text-[var(--genesis-text-secondary)] mt-1 leading-relaxed">เปิดคาราโอเกะ ตัดเสียงร้อง และมี Auto-DJ เมื่อคิวหมด</p>
+                        <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10 shadow-sm">
+                            <span class="inline-block text-xs font-mono font-bold text-cyan-400 mb-1">3. ปาร์ตี้</span>
+                            <p class="text-xs text-slate-400">คาราโอเกะ คิวต่อเนื่อง</p>
                         </div>
                     </div>
 
-                    <!-- Action Guidance Buttons -->
+                    <!-- Action Buttons -->
                     <div class="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-                        <button type="button" onclick="document.getElementById('url-input')?.focus()" class="h-10 px-5 rounded-[8px] bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer">
+                        <button type="button" onclick="document.getElementById('url-input')?.focus()" class="h-9 px-4 rounded-full bg-cyan-400 hover:bg-cyan-300 text-black text-xs font-bold transition flex items-center gap-2 shadow-md shadow-cyan-400/20 active:scale-95 cursor-pointer">
                             <i class="fa-solid fa-plus text-xs"></i>
-                            <span>1. เริ่มค้นหาเพลง</span>
+                            <span>เพิ่มเพลง</span>
                         </button>
-                        <button type="button" onclick="document.getElementById('header-qr-btn')?.click() || document.getElementById('aside-qr-btn')?.click()" class="h-10 px-4 rounded-[8px] bg-[var(--genesis-surface)] hover:bg-[var(--genesis-surface-subtle)] text-[var(--genesis-text-primary)] border border-[var(--genesis-border)] text-xs sm:text-sm font-semibold transition flex items-center gap-2 active:scale-95 cursor-pointer">
-                            <i class="fa-solid fa-qrcode text-indigo-500 text-xs"></i>
-                            <span>2. เปิด QR ชวนเพื่อน</span>
+                        <button type="button" onclick="document.getElementById('header-qr-btn')?.click() || document.getElementById('qr-container')?.click()" class="h-9 px-4 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/10 text-xs font-semibold transition flex items-center gap-2 active:scale-95 cursor-pointer">
+                            <i class="fa-solid fa-qrcode text-cyan-400 text-xs"></i>
+                            <span>เปิด QR</span>
                         </button>
                     </div>
                 </div>
@@ -2143,33 +2207,28 @@
                 <span>แสดงเนื้อเพลงขึ้นจอ</span>
             </button>
 
-
-
             <!-- Quality Badge & Fullscreen / Theater Buttons -->
-            <div id="player-corner-controls" class="absolute bottom-3 right-3 z-40 flex items-center gap-1.5 idle-autofade">
+            <div id="player-corner-controls" class="absolute bottom-3 right-28 sm:bottom-4 sm:right-32 z-40 flex items-center gap-1.5 idle-autofade">
                 <button id="player-lyrics-btn" class="bg-black/70 backdrop-blur-md hover:bg-white/10 px-3 py-1.5 rounded-full text-slate-300 hover:text-cyan-300 text-[11px] border border-white/10 hover:border-cyan-400/40 transition flex items-center gap-1.5 shadow-sm active:scale-95" title="แสดง/ซ่อน เนื้อเพลงบนจอวิดีโอ (Smooth Fade)">
                     <i class="fa-solid fa-microphone-lines text-cyan-400"></i> <span id="player-lyrics-btn-label" class="hidden sm:inline font-medium">แสดงขึ้นจอ</span>
                 </button>
-                <span id="player-quality-badge" class="bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-cyan-400 font-bold text-[10px] border border-cyan-400/30 shadow-sm">
+                <span id="player-quality-badge" class="bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full text-white/40 font-medium text-[9px] border border-white/10 shadow-none opacity-50 hover:opacity-100 transition">
                     HD
                 </span>
-                <button id="theater-btn" class="w-8 h-8 rounded-full bg-black/70 backdrop-blur-md hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 hover:border-cyan-400/40 flex items-center justify-center text-xs transition shadow-sm active:scale-95" title="เต็มจอเว็บ (Theater Mode)">
-                    <i class="fa-solid fa-square"></i>
+                <button id="theater-btn" class="w-8 h-8 rounded-full bg-black/70 backdrop-blur-md hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 hover:border-cyan-400/40 flex items-center justify-center text-xs transition shadow-sm active:scale-95 cursor-pointer" title="เปิด/ปิด Theater Mode (ซ่อนเมนูอัตโนมัติเมื่อไม่มีการใช้งาน)">
+                    <i class="fa-solid fa-clapperboard"></i>
                 </button>
                 <button id="fs-btn" class="w-8 h-8 rounded-full bg-black/70 backdrop-blur-md hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 hover:border-cyan-400/40 flex items-center justify-center text-xs transition shadow-sm active:scale-95" title="เต็มจอคอม (Fullscreen)">
                     <i class="fa-solid fa-expand"></i>
                 </button>
             </div>
 
+
+
             <!-- Player status badge -->
-            <div id="host-badge" class="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-cyan-400 border border-cyan-400/30 z-20 flex items-center gap-1.5 shadow-sm idle-autofade">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span> HOST MODE
+            <div id="host-badge" class="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-2 py-1 rounded-full border border-cyan-400/30 z-20 flex items-center shadow-sm idle-autofade hidden">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50"></span>
             </div>
-            <!-- Player Quick QR Pill -->
-            <button id="player-qr-badge" type="button" class="absolute bottom-3 left-28 bg-black/70 hover:bg-cyan-950/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-cyan-300 border border-cyan-400/30 hover:border-cyan-400/70 z-20 flex items-center gap-1.5 shadow-sm transition active:scale-95 idle-autofade cursor-pointer" title="เปิด QR Code ปาร์ตี้เต็มจอ">
-                <i class="fa-solid fa-qrcode text-cyan-400 text-[10px]"></i>
-                <span>QR ปาร์ตี้</span>
-            </button>
         </section>
 
         <!-- Weather Radar & GPS Navigation Panel (Cross-Fades In Place of Control Panel) -->
@@ -2404,7 +2463,7 @@
         </section>
 
         <!-- Right Panel (380px fixed on desktop per DESIGN.md) -->
-        <aside class="relative w-full md:w-[380px] md:flex-none flex-1 min-h-0 bg-black flex flex-col overflow-hidden shrink-0 border-l border-white/[0.07] transition-colors duration-200 duration-300">
+        <aside id="control-panel-aside" class="relative w-full md:w-[380px] md:flex-none flex-1 min-h-0 bg-black flex flex-col overflow-hidden shrink-0 border-l border-white/[0.07] transition-colors duration-200 duration-300">
             
             <!-- Mode Toggle & Profile -->
             <div class="p-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
@@ -2469,19 +2528,18 @@
                 <!-- Controls Section -->
                 <div id="sec-ctrl" class=" md:block space-y-3">
 
-                    <!-- Search & Add Song Bar (Vibrant Cyber Pill) -->
-                    <div id="add-queue-card" class="glass-panel rounded-2xl p-2.5 transition-colors duration-200 duration-300 border border-cyan-500/25 hover:border-cyan-400/50 focus-within:border-cyan-400 focus-within:shadow-lg shadow-cyan-500/25">
+                    <!-- Search & Add Song Bar (Sleek Minimal Cyber Pill) -->
+                    <div id="add-queue-card" class="glass-panel rounded-2xl p-2 transition-colors duration-200 border border-cyan-500/25 hover:border-cyan-400/50 focus-within:border-cyan-400 focus-within:shadow-lg shadow-cyan-500/25">
                         <div class="relative flex items-center">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-cyan-400/70 text-xs pointer-events-none"></i>
-                            <input id="url-input" type="text" placeholder="ค้นหาเพลง หรือ วางลิงก์ YouTube / Spotify..." class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-cyan-400/60 rounded-full pl-9 pr-10 py-2 text-xs text-white placeholder-slate-400 focus:outline-none transition-colors duration-200">
-                            <button id="add-btn" class="absolute right-1.5 w-7 h-7 bg-cyan-500 hover:bg-cyan-400 text-black rounded-full flex items-center justify-center text-xs font-bold transition active:scale-90 shadow-md shadow-cyan-500/30" title="เพิ่มเพลงเข้าคิว">
+                            <input id="url-input" type="text" placeholder="ค้นหาหรือวางลิงก์..." class="w-full bg-white/[0.04] border border-white/[0.08] focus:border-cyan-400/60 rounded-full pl-4 pr-10 py-2 text-xs text-white placeholder-slate-400 focus:outline-none transition-colors duration-200">
+                            <button id="add-btn" class="absolute right-1.5 w-7 h-7 bg-cyan-400 hover:bg-cyan-300 text-black rounded-full flex items-center justify-center text-xs font-bold transition active:scale-90 shadow-md shadow-cyan-400/30" title="เพิ่มเพลงเข้าคิว">
                                 <i id="add-btn-icon" class="fa-solid fa-plus text-xs"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Now Playing + Controls (Luxury Cyber Cockpit) -->
-                    <div id="now-playing-card" class="glass-panel relative overflow-hidden rounded-2xl p-4 transition-colors duration-200 duration-500 border border-cyan-500/20 hover:border-cyan-400/40 shadow-2xl shadow-black/90">
+                    <div id="now-playing-card" class="glass-panel relative overflow-hidden rounded-2xl p-4 transition-colors duration-200 border border-cyan-500/20 hover:border-cyan-400/40 shadow-2xl shadow-black/90">
                         <!-- Ambient Blurred Cover Background -->
                         <div id="now-ambient-bg" class="absolute inset-0 bg-cover bg-center opacity-0 blur-3xl scale-150 transition-colors duration-200 duration-1000 pointer-events-none"></div>
                         <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/85 to-black/95 pointer-events-none"></div>
@@ -2516,73 +2574,73 @@
 
                             <!-- Progress -->
                             <div class="pt-1">
-                                <div id="progress-bar" role="slider" tabindex="0" aria-label="แถบแสดงและเลื่อนเวลาเล่นเพลง" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="w-full h-1.5 bg-[var(--genesis-surface-subtle)] hover:h-2 rounded-full cursor-pointer overflow-hidden transition-colors duration-200 border border-[var(--genesis-border)]" title="คลิกหรือลากเพื่อเลื่อนเวลาเล่น">
-                                    <div id="progress-fill" class="h-full bg-indigo-600 rounded-full" style="width:0%"></div>
+                                <div id="progress-bar" role="slider" tabindex="0" aria-label="แถบแสดงและเลื่อนเวลาเล่นเพลง" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="w-full h-1.5 bg-white/[0.08] hover:h-2 rounded-full cursor-pointer overflow-hidden transition-all duration-200 border border-white/10" title="คลิกหรือลากเพื่อเลื่อนเวลาเล่น">
+                                    <div id="progress-fill" class="h-full bg-cyan-400 rounded-full" style="width:0%"></div>
                                 </div>
-                                <div class="flex justify-between items-center text-[10px] mt-1.5 font-mono text-[var(--genesis-text-muted)]">
-                                    <span id="time-now" class="tabular-nums font-semibold text-[var(--genesis-text-primary)]">0:00</span>
-                                    <span id="time-total" class="tabular-nums font-medium text-[var(--genesis-text-secondary)]">0:00</span>
+                                <div class="flex justify-between items-center text-[10px] mt-1.5 font-mono text-slate-400">
+                                    <span id="time-now" class="tabular-nums font-semibold text-white">0:00</span>
+                                    <span id="time-total" class="tabular-nums font-medium text-slate-400">0:00</span>
                                 </div>
                             </div>
 
                             <!-- Volume -->
-                            <div class="flex items-center gap-2 pt-0.5">
-                                <button id="vol-down" class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-[10px] bg-[var(--genesis-surface-subtle)] hover:bg-[var(--genesis-surface)] text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] border border-[var(--genesis-border)] transition flex items-center justify-center text-sm active:scale-95 cursor-pointer" title="ลดเสียง" aria-label="ลดระดับเสียง">
+                            <div class="flex items-center gap-2.5 pt-0.5 px-0.5">
+                                <button id="vol-down" class="w-7 h-7 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition flex items-center justify-center text-xs active:scale-90" title="ลดเสียง" aria-label="ลดระดับเสียง">
                                     <i class="fa-solid fa-volume-low"></i>
                                 </button>
                                 <input id="vol-slider" type="range" min="0" max="100" value="50" class="flex-1 cursor-pointer" aria-label="ระดับความดังเสียง">
-                                <button id="vol-up" class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-[10px] bg-[var(--genesis-surface-subtle)] hover:bg-[var(--genesis-surface)] text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] border border-[var(--genesis-border)] transition flex items-center justify-center text-sm active:scale-95 cursor-pointer" title="เพิ่มเสียง" aria-label="เพิ่มระดับเสียง">
+                                <button id="vol-up" class="w-7 h-7 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition flex items-center justify-center text-xs active:scale-90" title="เพิ่มเสียง" aria-label="เพิ่มระดับเสียง">
                                     <i class="fa-solid fa-volume-high"></i>
                                 </button>
-                                <span id="vol-label" class="text-xs text-[var(--genesis-text-primary)] w-10 text-right font-mono font-semibold">50%</span>
+                                <span id="vol-label" class="text-xs text-white w-9 text-right font-mono font-medium">50%</span>
                             </div>
 
                             <!-- Transport & Playback Control Deck -->
-                            <div class="space-y-2.5 pt-2 border-t border-[var(--genesis-border)]">
+                            <div class="space-y-2.5 pt-2 border-t border-white/[0.08]">
                                 <!-- Main Transport Bar (Dominant Play & Skip) -->
                                 <div class="flex items-center justify-center gap-3 py-1">
-                                    <!-- Primary Play/Pause Button (Prominent 48px circle with crisp white icon) -->
-                                    <button id="btn-play" type="button" class="w-12 h-12 min-w-[48px] min-h-[48px] rounded-full bg-violet-600 hover:bg-violet-500 text-white flex items-center justify-center shadow-lg shadow-violet-600/40 hover:shadow-violet-600/60 transition-transform hover:scale-105 active:scale-95 font-bold cursor-pointer" title="เล่น / หยุดเพลง">
-                                        <i id="icon-play" class="fa-solid fa-play text-base ml-0.5 text-white pointer-events-none"></i>
+                                    <!-- Primary Play/Pause Button -->
+                                    <button id="btn-play" type="button" class="w-12 h-12 min-w-[48px] min-h-[48px] rounded-full bg-cyan-400 hover:bg-cyan-300 text-black flex items-center justify-center shadow-lg shadow-cyan-400/30 hover:shadow-cyan-400/50 hover:scale-105 active:scale-95 transition-all font-bold cursor-pointer" title="เล่น / หยุดเพลง">
+                                        <i id="icon-play" class="fa-solid fa-play text-base ml-0.5 text-black pointer-events-none"></i>
                                         <span id="play-label" class="sr-only">เล่นเพลง</span>
                                     </button>
 
-                                    <!-- Universal 3-Tap Direct Skip Button (For Everyone: Host & Guests) -->
-                                    <button id="btn-skip" type="button" class="h-11 min-h-[44px] px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/[0.12] hover:border-violet-400/60 text-xs font-semibold flex items-center gap-2 transition-colors duration-200 duration-200 active:scale-95 shadow-sm cursor-pointer select-none group" title="กด 3 ครั้งเพื่อข้ามเพลง">
-                                        <i class="fa-solid fa-forward-step text-violet-400 group-hover:text-violet-300 text-xs transition-colors pointer-events-none"></i>
+                                    <!-- Universal 3-Tap Direct Skip Button -->
+                                    <button id="btn-skip" type="button" class="h-10 px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/10 hover:border-cyan-400/50 text-xs font-semibold flex items-center gap-2 transition active:scale-95 cursor-pointer select-none group" title="กด 3 ครั้งเพื่อข้ามเพลง">
+                                        <i class="fa-solid fa-forward-step text-cyan-400 group-hover:text-cyan-300 text-xs transition-colors pointer-events-none"></i>
                                         <span id="skip-label" class="text-xs font-semibold tracking-wide pointer-events-none">ข้ามเพลง</span>
                                         <div id="skip-tap-dots" class="flex items-center gap-1 ml-0.5 pointer-events-none">
-                                            <span id="skip-dot-1" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200 duration-200"></span>
-                                            <span id="skip-dot-2" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200 duration-200"></span>
-                                            <span id="skip-dot-3" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200 duration-200"></span>
+                                            <span id="skip-dot-1" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200"></span>
+                                            <span id="skip-dot-2" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200"></span>
+                                            <span id="skip-dot-3" class="w-1.5 h-1.5 rounded-full bg-white/20 transition-colors duration-200"></span>
                                         </div>
                                     </button>
                                 </div>
 
-                                <!-- Secondary Audio & Lyrics Tools (2-Tier Spacious Layout) -->
-                                <div class="space-y-1.5 p-2 rounded-[10px] bg-[var(--genesis-surface-subtle)] border border-[var(--genesis-border)]">
-                                    <!-- Row 1: Feature Toggles (Equal 50/50 Grid) -->
+                                <!-- Secondary Audio & Lyrics Tools -->
+                                <div class="space-y-1.5 p-2 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                                    <!-- Row 1: Feature Toggles -->
                                     <div class="grid grid-cols-2 gap-2">
                                         <!-- Karaoke Toggle Button -->
-                                        <button id="btn-karaoke-switch" type="button" class="h-8 px-3 rounded-[6px] text-xs font-medium text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] hover:bg-[var(--genesis-surface)] border border-[var(--genesis-border)] transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="สลับโหมดคาราโอเกะ (ตัดเสียงร้อง)">
-                                            <i class="fa-solid fa-microphone-lines text-xs text-pink-500"></i>
+                                        <button id="btn-karaoke-switch" type="button" class="h-8 px-3 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] border border-white/10 transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="สลับโหมดคาราโอเกะ (ตัดเสียงร้อง)">
+                                            <i class="fa-solid fa-microphone-lines text-xs text-pink-400"></i>
                                             <span id="btn-karaoke-label" class="truncate">คาราโอเกะ</span>
                                         </button>
 
                                         <!-- Lyrics Display Toggle Button -->
-                                        <button id="btn-toggle-lyrics" type="button" class="h-8 px-3 rounded-[6px] text-xs font-medium text-[var(--genesis-text-secondary)] hover:text-[var(--genesis-text-primary)] hover:bg-[var(--genesis-surface)] border border-[var(--genesis-border)] transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="เปิด/ปิด เนื้อเพลงบนจอ">
-                                            <i class="fa-solid fa-music text-xs text-violet-500"></i>
+                                        <button id="btn-toggle-lyrics" type="button" class="h-8 px-3 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] border border-white/10 transition flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap" title="เปิด/ปิด เนื้อเพลงบนจอ">
+                                            <i class="fa-solid fa-music text-xs text-cyan-400"></i>
                                             <span id="btn-lyrics-label" class="truncate">เนื้อเพลง</span>
                                         </button>
                                     </div>
 
-                                    <!-- Row 2: Stream Quality Control (Spacious and clear) -->
-                                    <div class="flex items-center justify-between px-1.5 pt-1 border-t border-[var(--genesis-border)] text-xs text-[var(--genesis-text-secondary)]">
-                                        <span class="flex items-center gap-1.5 text-[11px] font-medium text-[var(--genesis-text-secondary)]">
-                                            <i class="fa-solid fa-gauge-high text-xs text-violet-500"></i>
+                                    <!-- Row 2: Stream Quality Control -->
+                                    <div class="flex items-center justify-between px-1.5 pt-1 border-t border-white/[0.06] text-xs text-slate-400">
+                                        <span class="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                                            <i class="fa-solid fa-gauge-high text-xs text-cyan-400"></i>
                                             <span>ความคมชัด:</span>
                                         </span>
-                                        <select id="quality-select" class="h-7 px-2 rounded-[6px] bg-[var(--genesis-surface)] border border-[var(--genesis-border)] text-[var(--genesis-text-primary)] text-xs font-semibold cursor-pointer focus:outline-none transition shadow-sm" title="ความคมชัดวิดีโอ">
+                                        <select id="quality-select" class="h-7 px-2 rounded-md bg-zinc-900 border border-white/10 text-white text-xs font-medium cursor-pointer focus:outline-none transition shadow-sm" title="ความคมชัดวิดีโอ">
                                             <option value="max" selected>1080p+ Full HD</option>
                                             <option value="hd720">720p HD</option>
                                             <option value="medium">360p</option>
@@ -2675,36 +2733,7 @@
                     </div>
                 </div>
 
-                <!-- QR Code Party Card (Host Mode Only - Sleek, Unclipped & Expandable) -->
-                <div id="qr-section-wrap" class="pt-3 border-t border-white/[0.06] flex flex-col items-center">
-                    <div id="qr-container" class="w-full max-w-[240px] bg-slate-950/90 border border-cyan-400/35 hover:border-cyan-400/70 rounded-2xl p-3 flex flex-col items-center text-center shadow-lg shadow-cyan-500/20 transition-colors duration-200 duration-300 hover:shadow-cyan-500/30 group cursor-pointer hidden" title="แตะเพื่อขยาย QR เต็มจอ หรือ คัดลอกลิงก์">
-                        <!-- Card Header -->
-                        <div class="flex items-center justify-between w-full mb-1 px-1">
-                            <div class="flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-sm shadow-cyan-400/50"></span>
-                                <span class="text-[10px] font-extrabold font-medium text-cyan-300">สแกนเข้าปาร์ตี้</span>
-                            </div>
-                            <span id="qr-live-guests-chip" class="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 flex items-center gap-1">
-                                <i class="fa-solid fa-users text-[8px]"></i> <span id="qr-guest-count">1</span>
-                            </span>
-                        </div>
-                        <p class="text-[10px] text-cyan-200/80 mb-2">สแกนเพื่อเลือกเพลง โหวต และส่งรีแอค 🎶</p>
 
-                        <!-- High-Contrast QR Code Tile (Pure White rounded frame for optimal camera scanning) -->
-                        <div class="p-2.5 bg-white rounded-xl shadow-xl shadow-black/80 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
-                            <div id="qrcode" class="w-[128px] h-[128px] flex items-center justify-center"></div>
-                        </div>
-
-                        <!-- Card Footer & Party Link -->
-                        <div class="w-full mt-2.5 pt-2 border-t border-white/[0.08] flex flex-col items-center gap-1">
-                            <span id="url-display" class="text-[10px] font-mono font-bold text-slate-300 group-hover:text-white select-all truncate max-w-full block"></span>
-                            <div class="flex items-center gap-1 text-[9px] text-cyan-400/90 font-medium pt-0.5">
-                                <i class="fa-solid fa-copy text-[8px]"></i>
-                                <span>คลิกเพื่อคัดลอก & ขยายเต็มจอ</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
             </div>
         </aside>
@@ -2729,13 +2758,20 @@
         </button>
     </nav>
 
+    <!-- Fixed Corner QR Code Popup (Pinned Bottom-Right of Screen, +30% Size: 104x104) -->
+    <div id="qr-container" class="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 bg-black/90 backdrop-blur-md border border-white/15 hover:border-cyan-400/70 rounded-2xl p-2 shadow-2xl shadow-black flex items-center justify-center transition-all duration-300 hover:scale-105 group cursor-pointer hidden" title="สแกนเพื่อเข้าปาร์ตี้ (แตะเพื่อขยาย)">
+        <div class="p-1.5 bg-white rounded-xl flex items-center justify-center shadow-md">
+            <div id="qrcode" class="w-[104px] h-[104px] flex items-center justify-center"></div>
+        </div>
+    </div>
+
     <!-- Toast Notifications (Accessible Live Region) -->
     <div id="toast-container" role="status" aria-live="polite" class="fixed top-4 right-4 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="/js/main.js?v=31"></script>
-    <script nomodule src="/app.js?v=31"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="/js/main.js?v=32"></script>
+    <script nomodule src="/app.js?v=32"></script>
 </body>
 </html>

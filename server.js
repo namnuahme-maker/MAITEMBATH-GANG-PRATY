@@ -22,7 +22,16 @@ process.on('unhandledRejection', (reason) => {
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  },
+  pingTimeout: 30000,
+  pingInterval: 10000,
+  transports: ['polling', 'websocket'],
+  allowUpgrades: true
+});
 
 const PORT = process.env.PORT || 3000;
 const MAX_ALT_RETRIES = 10;
@@ -1243,9 +1252,9 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
 
     let searchQuery = '';
     if (customQuery) {
-      const suffixes = ['Official MV', 'Official Audio', 'เพลง', ''];
+      const suffixes = ['Official MV', 'Official Audio', 'เพลง'];
       const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-      searchQuery = `${customQuery} ${suffix}`.trim();
+      searchQuery = /official|mv|audio|เพลง/i.test(customQuery) ? customQuery : `${customQuery} ${suffix}`.trim();
     } else if (modeKey === 'similar' && lastPlayedVideoInfo) {
       const cleanAuthor = (lastPlayedVideoInfo.author || '')
         .replace(/-\s*Topic$/i, '')
@@ -1272,7 +1281,7 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
     const search = await yt.search(searchQuery);
     const videos = Array.isArray(search?.videos) ? search.videos : [];
 
-    // Filter out already played videos, consecutive duplicates, and long compilations
+    // Filter out already played videos, consecutive duplicates, and non-song / compilation content
     const isAutoDjConsecutiveDuplicate = (vid) => {
       if (!vid) return true;
       if (wouldBeConsecutiveDuplicate(vid)) return true;
@@ -1285,9 +1294,11 @@ async function triggerAutoDjNextTrack(forcePlay = false) {
       if (isAutoDjConsecutiveDuplicate(v.id)) return false;
       if (recentPlayedIds.includes(v.id)) return false;
       const t = v.title?.text || v.title?.runs?.[0]?.text || '';
-      if (/รวมเพลง|1\s*ชั่วโมง|2\s*ชั่วโมง|1\s*hour|nonstop|full\s*album|ยาวๆ/i.test(t)) return false;
+      // Exclude compilations, continuous mixes, podcasts, gameplay, talks, reviews, reactions, tutorials
+      if (/รวมเพลง|1\s*ชั่วโมง|2\s*ชั่วโมง|1\s*hour|2\s*hour|nonstop|full\s*album|ยาวๆ|พอดแคสต์|podcast|talk|interview|สัมภาษณ์|รีวิว|review|สอนเล่น|gameplay|แคสเกม|สตรีม|stream|ข่าว|news|คลิปสั้น|reaction|รีแอค|ไฮไลท์|highlight|recap|vlog|สปอย|เต้นตาม|cover dance|เบื้องหลัง|behind the scene|live stream|unboxing|แกะกล่อง|parody|พากย์/i.test(t)) return false;
       const durSec = v.duration?.seconds;
-      if (typeof durSec === 'number' && durSec > 0 && (durSec < 85 || durSec > 540)) return false;
+      // Single track length only: between 90s (1.5 min) and 420s (7 min)
+      if (typeof durSec === 'number' && durSec > 0 && (durSec < 90 || durSec > 420)) return false;
       return true;
     };
 

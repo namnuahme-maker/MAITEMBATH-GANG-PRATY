@@ -160,11 +160,24 @@ export function showToast(msg, type = 'info', action = null) {
     setTimeout(() => {
         toast.classList.remove('translate-y-2', 'opacity-0');
     }, 10);
+
+    if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
+        wakeTheaterPanel('toast');
+    }
+
     const duration = action ? 7000 : 3500;
     setTimeout(() => {
         if (toast.isConnected) {
             toast.classList.add('opacity-0', '-translate-y-2');
-            setTimeout(() => toast.remove(), 300);
+            setTimeout(() => {
+                toast.remove();
+                if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
+                    const tc = $('toast-container');
+                    if (!tc || tc.children.length === 0) {
+                        scheduleTheaterCollapse(THEATER_IDLE_DELAY);
+                    }
+                }
+            }, 300);
         }
     }, duration);
 }
@@ -753,15 +766,15 @@ export function renderQrCode(localIp, port) {
     }
     currentPartyLink = link;
 
-    // 1. Render Sidebar QR (128x128)
+    // 1. Render Corner Popup QR (104x104, +30% size)
     const qrEl = $('qrcode');
     if (qrEl) {
         qrEl.innerHTML = '';
         if (window.QRCode) {
             new window.QRCode(qrEl, {
                 text: link,
-                width: 128,
-                height: 128,
+                width: 104,
+                height: 104,
                 colorDark: "#080d1a",
                 colorLight: "#ffffff",
                 correctLevel: window.QRCode.CorrectLevel.M
@@ -1415,18 +1428,132 @@ export function initUI() {
         });
     }
 
+// --- Theater Mode Smart Auto-Fade System ---
+let isTheaterMode = false;
+let theaterIdleTimer = null;
+const THEATER_IDLE_DELAY = 4500;
+
+export function isTheaterModeActive() {
+    return isTheaterMode;
+}
+
+export function collapseTheaterPanel() {
+    if (!isTheaterMode) return;
+
+    // Do not collapse if user is actively focusing an input in the aside panel
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
+        scheduleTheaterCollapse();
+        return;
+    }
+
+    // Do not collapse while toast notifications are actively displayed on screen
+    const toastContainer = $('toast-container');
+    if (toastContainer && toastContainer.children.length > 0) {
+        scheduleTheaterCollapse(3000);
+        return;
+    }
+
+    document.body.classList.add('theater-collapsed');
+    const theaterBtn = $('theater-btn');
+    if (theaterBtn) {
+        theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
+    }
+}
+
+export function wakeTheaterPanel(reason = 'interaction') {
+    if (!isTheaterMode) return;
+
+    if (document.body.classList.contains('theater-collapsed')) {
+        document.body.classList.remove('theater-collapsed');
+    }
+
+    scheduleTheaterCollapse();
+}
+
+export function scheduleTheaterCollapse(delay = THEATER_IDLE_DELAY) {
+    if (!isTheaterMode) return;
+    if (theaterIdleTimer) {
+        clearTimeout(theaterIdleTimer);
+    }
+    theaterIdleTimer = setTimeout(() => {
+        collapseTheaterPanel();
+    }, delay);
+}
+
+export function toggleTheaterMode(forceState = null) {
+    const nextState = forceState !== null ? forceState : !isTheaterMode;
+    isTheaterMode = nextState;
+    const theaterBtn = $('theater-btn');
+
+    if (isTheaterMode) {
+        document.body.classList.add('theater-mode');
+        if (theaterBtn) {
+            theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
+            theaterBtn.title = 'ปิด Theater Mode (กำลังทำงาน)';
+        }
+        showToast('🎬 เข้าสู่ Theater Mode: แผงเมนูด้านขวาจะซ่อนและขยายเต็มจออัตโนมัติเมื่อไม่มีการใช้งาน', 'info');
+        scheduleTheaterCollapse(THEATER_IDLE_DELAY);
+    } else {
+        if (theaterIdleTimer) {
+            clearTimeout(theaterIdleTimer);
+            theaterIdleTimer = null;
+        }
+        document.body.classList.remove('theater-mode', 'theater-collapsed');
+        if (theaterBtn) {
+            theaterBtn.classList.remove('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
+            theaterBtn.title = 'เปิด/ปิด Theater Mode (ซ่อนเมนูอัตโนมัติเมื่อไม่มีการใช้งาน)';
+        }
+        showToast('ออกจาก Theater Mode', 'info');
+    }
+}
+
     // 10. Theater & Fullscreen Modes
     const theaterBtn = $('theater-btn');
     const fsBtn = $('fs-btn');
 
     if (theaterBtn) {
         theaterBtn.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    showToast(`Error: ${err.message}`, 'error');
-                });
-            } else {
-                document.exitFullscreen();
+            toggleTheaterMode();
+        });
+    }
+
+    // User activity listeners for Theater Mode auto-wake and idle tracking
+    let lastUserActivity = 0;
+    const handleTheaterActivity = () => {
+        if (!isTheaterMode) return;
+        const now = Date.now();
+        if (document.body.classList.contains('theater-collapsed')) {
+            wakeTheaterPanel('user-activity');
+            lastUserActivity = now;
+            return;
+        }
+        if (now - lastUserActivity > 1200) {
+            lastUserActivity = now;
+            scheduleTheaterCollapse();
+        }
+    };
+
+    window.addEventListener('mousemove', handleTheaterActivity, { passive: true });
+    window.addEventListener('touchstart', handleTheaterActivity, { passive: true });
+    window.addEventListener('keydown', handleTheaterActivity, { passive: true });
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isTheaterMode) {
+            toggleTheaterMode(false);
+        }
+    });
+
+    const asidePanel = $('control-panel-aside') || document.querySelector('main > aside');
+    if (asidePanel) {
+        asidePanel.addEventListener('mouseenter', () => {
+            if (isTheaterMode && theaterIdleTimer) {
+                clearTimeout(theaterIdleTimer);
+            }
+        });
+        asidePanel.addEventListener('mouseleave', () => {
+            if (isTheaterMode) {
+                scheduleTheaterCollapse();
             }
         });
     }
@@ -1448,6 +1575,16 @@ export function initUI() {
             document.body.classList.add('web-fullscreen');
         } else {
             document.body.classList.remove('web-fullscreen');
+        }
+
+        // Dynamically reparent qrContainer into playerArea when playerArea is fullscreen,
+        // and back to document.body when exiting fullscreen
+        if (qrContainer) {
+            if (document.fullscreenElement && playerArea && (document.fullscreenElement === playerArea || playerArea.contains(document.fullscreenElement))) {
+                playerArea.appendChild(qrContainer);
+            } else {
+                document.body.appendChild(qrContainer);
+            }
         }
     });
 
@@ -1762,7 +1899,28 @@ export function initUI() {
     }
 
     // Reactive State Subscriptions
+    let prevQueueLength = -1;
+    let prevTrackId = null;
+
     onStateChange((state) => {
+        // Wake up theater panel on new song added to queue
+        const currentQueueLen = Array.isArray(state?.queue) ? state.queue.length : 0;
+        if (prevQueueLength !== -1 && currentQueueLen > prevQueueLength) {
+            if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
+                wakeTheaterPanel('queue-add');
+            }
+        }
+        prevQueueLength = currentQueueLen;
+
+        // Wake up theater panel on track change
+        const currentTrackId = state?.currentVideo?.id || state?.currentVideo?.videoId;
+        if (prevTrackId && currentTrackId && currentTrackId !== prevTrackId) {
+            if (typeof isTheaterModeActive === 'function' && isTheaterModeActive()) {
+                wakeTheaterPanel('track-change');
+            }
+        }
+        prevTrackId = currentTrackId;
+
         renderNowPlaying(state.currentVideo, state.isPlaying);
         updateVolumeUI(state.volume);
         updateQualityUI(state.quality);

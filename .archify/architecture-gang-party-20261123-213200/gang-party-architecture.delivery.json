@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "10b145b9-4f61-4f2e-b6a6-c989e26e8c77",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\NAMNUAH\\.t3\\projects\\gangmaitembath\\.archify\\architecture-gang-party-20261123-213200\\candidate.json",
+  "output": "C:\\Users\\NAMNUAH\\.t3\\projects\\gangmaitembath\\.archify\\architecture-gang-party-20261123-213200\\gang-party-architecture.html",
+  "specification": {
+    "sha256": "4cb7e60195eadd85eac25646108115011d858f81df8d8c7475b59c7dc78854cd",
+    "bytes": 5987
+  },
+  "artifact": {
+    "sha256": "2ac56c5a9cf64b410f8d820cc40d371f89e1f62b3dd2777187ed522be37534c3",
+    "bytes": 851069
+  }
+}

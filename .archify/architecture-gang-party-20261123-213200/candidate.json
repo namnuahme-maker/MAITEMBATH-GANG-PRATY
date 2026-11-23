@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "MAITEMBATH GANG PARTY Architecture",
+    "subtitle": "Collaborative In-Car & Party Music Video Player System",
+    "output": "gang-party-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/namnuahme-maker/MAITEMBATH-GANG-PRATY.git",
+      "revision": "41af487fbd2b44892f7780eb0165db6f950db333"
+    }
+  },
+  "components": [
+    {
+      "id": "host_ui",
+      "type": "frontend",
+      "label": "Host Player Client",
+      "sublabel": "OLED Display & Danmaku",
+      "tag": "In-Car Screen",
+      "pos": [50, 100],
+      "size": [180, 65],
+      "sources": [
+        { "path": "public/index.html", "line": 2014, "end_line": 2050, "label": "Player Viewport" },
+        { "path": "public/js/ui.js", "line": 1, "end_line": 40, "label": "UI Controller" }
+      ]
+    },
+    {
+      "id": "lyrics_sync",
+      "type": "frontend",
+      "label": "Karaoke Lyrics Engine",
+      "sublabel": "Realtime Timestamp Sync",
+      "tag": "Karaoke Mode",
+      "pos": [50, 240],
+      "size": [180, 65],
+      "sources": [
+        { "path": "public/js/lyrics.js", "line": 1, "end_line": 30, "label": "LRC Sync Engine" }
+      ]
+    },
+    {
+      "id": "guest_ui",
+      "type": "frontend",
+      "label": "Guest Mobile Client",
+      "sublabel": "Queue Search & Vote-Skip",
+      "tag": "QR Connected",
+      "pos": [50, 380],
+      "size": [180, 65],
+      "sources": [
+        { "path": "public/js/queue.js", "line": 1, "end_line": 35, "label": "Queue Remote" }
+      ]
+    },
+    {
+      "id": "express_server",
+      "type": "backend",
+      "label": "Express Web Server",
+      "sublabel": "HTTP & REST APIs :3000",
+      "tag": "Node.js",
+      "pos": [390, 100],
+      "size": [185, 65],
+      "sources": [
+        { "path": "server.js", "line": 1, "end_line": 35, "label": "HTTP Server" }
+      ]
+    },
+    {
+      "id": "socket_hub",
+      "type": "messagebus",
+      "label": "Socket.IO Realtime Hub",
+      "sublabel": "State & Danmaku Broadcast",
+      "tag": "WebSockets",
+      "pos": [390, 240],
+      "size": [185, 65],
+      "sources": [
+        { "path": "server.js", "line": 1385, "end_line": 1405, "label": "Socket.IO Handlers" }
+      ]
+    },
+    {
+      "id": "autodj_engine",
+      "type": "backend",
+      "label": "Auto-DJ Music Engine",
+      "sublabel": "Mood Matching & Fallback",
+      "tag": "Non-Stop Play",
+      "pos": [390, 380],
+      "size": [185, 65],
+      "sources": [
+        { "path": "server.js", "line": 1234, "end_line": 1270, "label": "Auto-DJ Engine" }
+      ]
+    },
+    {
+      "id": "youtube_innertube",
+      "type": "external",
+      "label": "YouTube Innertube",
+      "sublabel": "Search, Audio & Metadata",
+      "tag": "YouTube.js",
+      "brand": "youtube",
+      "pos": [740, 170],
+      "size": [185, 65],
+      "sources": [
+        { "path": "server.js", "line": 723, "end_line": 755, "label": "Innertube Client" }
+      ]
+    },
+    {
+      "id": "lrclib_api",
+      "type": "external",
+      "label": "LRCLib Lyrics API",
+      "sublabel": "Synced .LRC Lyrics DB",
+      "tag": "Open Lyrics",
+      "pos": [740, 310],
+      "size": [185, 65],
+      "sources": [
+        { "path": "server.js", "line": 451, "end_line": 475, "label": "LRCLib Proxy" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Local In-Car / LAN Network (:3000)",
+      "wraps": ["host_ui", "guest_ui", "lyrics_sync", "express_server", "socket_hub", "autodj_engine"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "host-to-express",
+      "from": "host_ui",
+      "to": "express_server",
+      "label": "HTTP Assets"
+    },
+    {
+      "id": "host-to-socket",
+      "from": "host_ui",
+      "to": "socket_hub",
+      "label": "Realtime State",
+      "variant": "emphasis"
+    },
+    {
+      "id": "guest-to-socket",
+      "from": "guest_ui",
+      "to": "socket_hub",
+      "label": "Enqueue & Vote"
+    },
+    {
+      "id": "lyrics-to-host",
+      "from": "lyrics_sync",
+      "to": "host_ui",
+      "label": "Karaoke Overlay",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "socket-to-autodj",
+      "from": "socket_hub",
+      "to": "autodj_engine",
+      "label": "Queue Empty Trigger",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "express-to-youtube",
+      "from": "express_server",
+      "to": "youtube_innertube",
+      "label": "Video Search & Prefetch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "autodj-to-youtube",
+      "from": "autodj_engine",
+      "to": "youtube_innertube",
+      "label": "Song Seed Search"
+    },
+    {
+      "id": "express-to-lrclib",
+      "from": "express_server",
+      "to": "lrclib_api",
+      "label": "Fetch Synced LRC"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Interactive Client Tier",
+      "items": [
+        "Host Screen: Deep OLED Black UI with YouTube player, Danmaku canvas, and corner QR code",
+        "Guest Mobile Remote: Fast QR Code pairing for adding songs, voting to skip, and emoji reactions",
+        "Synced Karaoke Engine: Interpolated realtime timestamp tracking matching video playback"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Realtime Server Runtime",
+      "items": [
+        "Express Application Server: Serves static assets, lyrics proxy, and QR pairing endpoints",
+        "Socket.IO Realtime Hub: Manages synchronized room clock, FIFO queue reordering, and vote quorums",
+        "Auto-DJ Engine: Selects smart matching music when queue is exhausted with duplicate guards"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "External Service Integrations",
+      "items": [
+        "YouTube Innertube: Direct client-side video search, stream resolution prefetching, and fallback",
+        "LRCLib API: Public synchronized lyrics API queried with sanitized song titles for Karaoke"
+      ]
+    }
+  ]
+}

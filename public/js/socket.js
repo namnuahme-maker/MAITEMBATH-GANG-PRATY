@@ -23,6 +23,7 @@ import {
 
 let socket = null;
 let isInitialized = false;
+let ioPollingTimer = null;
 
 // Custom callback registries for non-state UI/Audio events
 const toastListeners = new Set();
@@ -43,21 +44,47 @@ const initListeners = new Set();
  * @returns {any} Socket instance
  */
 export function initSocket(customIoInstance = null) {
-    if (isInitialized && socket) return socket;
+    if (isInitialized && socket) {
+        if (socket.connected) {
+            setConnectionStatus('connected');
+        }
+        return socket;
+    }
 
     if (customIoInstance) {
         socket = customIoInstance;
     } else if (typeof io === 'function') {
+        if (ioPollingTimer) {
+            clearInterval(ioPollingTimer);
+            ioPollingTimer = null;
+        }
         socket = io({
             reconnection: true,
             reconnectionAttempts: Infinity,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 20000,
-            transports: ['websocket', 'polling']
+            reconnectionDelay: 800,
+            reconnectionDelayMax: 4000,
+            timeout: 15000,
+            transports: ['polling', 'websocket'],
+            autoConnect: true
         });
     } else {
-        console.warn('[Socket] Global `io` function is not available on window. Deferring socket init.');
+        console.warn('[Socket] Global `io` function is not available on window. Polling for `window.io`...');
+        if (!ioPollingTimer) {
+            let attempts = 0;
+            ioPollingTimer = setInterval(() => {
+                attempts++;
+                if (typeof io === 'function') {
+                    clearInterval(ioPollingTimer);
+                    ioPollingTimer = null;
+                    initSocket();
+                } else if (attempts >= 100) { // 10 seconds timeout
+                    clearInterval(ioPollingTimer);
+                    ioPollingTimer = null;
+                    console.error('[Socket] Failed to load socket.io library after 10s.');
+                    setConnectionStatus('disconnected');
+                }
+            }, 100);
+        }
         return null;
     }
 
@@ -97,6 +124,10 @@ function setupInboundDispatchers() {
         emitRequestState();
     });
 
+    if (socket.connected) {
+        setConnectionStatus('connected');
+    }
+
     socket.on('disconnect', (reason) => {
         console.warn('[Socket] Disconnected from server, reason:', reason);
         setConnectionStatus('disconnected');
@@ -106,6 +137,23 @@ function setupInboundDispatchers() {
         console.warn('[Socket] Connection error:', err.message);
         setConnectionStatus('disconnected');
     });
+
+    if (socket.io) {
+        socket.io.on('reconnect_attempt', (attempt) => {
+            console.log('[Socket] Reconnecting attempt:', attempt);
+            setConnectionStatus('connecting');
+        });
+
+        socket.io.on('reconnect', (attempt) => {
+            console.log('[Socket] Reconnected after attempt:', attempt);
+            setConnectionStatus('connected');
+        });
+
+        socket.io.on('reconnect_failed', () => {
+            console.warn('[Socket] Reconnect failed');
+            setConnectionStatus('disconnected');
+        });
+    }
 
     // --- Core State Updates ---
     socket.on('init', (data) => {

@@ -1,7 +1,7 @@
 /* Hallmark · shape: app screen · genre: atmospheric · theme: brand · redesign: full
- * paper: oklch(14% 0.015 230) · accent: oklch(88% 0.16 210) · display: Plus Jakarta Sans · body: Plus Jakarta Sans
+ * paper: oklch(0% 0 0) · accent: oklch(88% 0.17 205) · display: Plus Jakarta Sans · body: Plus Jakarta Sans
  * nav: kept · signature: in-car cockpit console · states: idle, active, nav-split
- * axes: dark/geometric-sans/chromatic-cyan · posture: stage · contrast: pass · v2.0.0 */
+ * axes: dark/geometric-sans/chromatic-cyan · posture: stage · contrast: pass · v2.1.0 */
 /* Hallmark · pre-emit critique: P9 H8 E9 S9 R9 V9 · weakest: spacing, locked to 4px scale */
 @import url("./tokens.css");
 @import url("./base.css");
@@ -12,6 +12,7 @@ html, body {
     background-color: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-body);
+    color-scheme: dark;
 }
 
 :focus-visible {
