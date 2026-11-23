@@ -1140,6 +1140,34 @@ export function isTheaterModeActive() {
     return isTheaterMode;
 }
 
+export function requestAppFullscreen() {
+    const el = document.documentElement;
+    if (el.requestFullscreen) {
+        return el.requestFullscreen();
+    } else if (el.webkitRequestFullscreen) {
+        return el.webkitRequestFullscreen();
+    } else if (el.mozRequestFullScreen) {
+        return el.mozRequestFullScreen();
+    } else if (el.msRequestFullscreen) {
+        return el.msRequestFullscreen();
+    }
+    return Promise.resolve();
+}
+
+export function exitAppFullscreen() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) return Promise.resolve();
+    if (document.exitFullscreen) {
+        return document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+        return document.webkitExitFullscreen();
+    } else if (document.mozCancelFullScreen) {
+        return document.mozCancelFullScreen();
+    } else if (document.msExitFullscreen) {
+        return document.msExitFullscreen();
+    }
+    return Promise.resolve();
+}
+
 export function collapseTheaterPanel() {
     if (!isTheaterMode) return;
 
@@ -1195,7 +1223,13 @@ export function toggleTheaterMode(forceState = null) {
             theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
             theaterBtn.title = 'ปิด Theater Mode (กำลังทำงาน)';
         }
-        showToast('🎬 เข้าสู่ Theater Mode: แผงเมนูด้านขวาจะซ่อนและขยายเต็มจออัตโนมัติเมื่อไม่มีการใช้งาน', 'info');
+        // Expand to true OS Fullscreen (hides browser tabs, title bar, address bar)
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            requestAppFullscreen().catch(err => {
+                console.warn('[Theater] Fullscreen request deferred or rejected:', err);
+            });
+        }
+        showToast('🎬 เข้าสู่ Theater Mode: เต็มจอไร้แท็บเบราว์เซอร์ แผงขวาซ่อนอัตโนมัติเมื่อไม่มีการใช้งาน', 'info');
         scheduleTheaterCollapse(THEATER_IDLE_DELAY);
     } else {
         if (theaterIdleTimer) {
@@ -1206,6 +1240,10 @@ export function toggleTheaterMode(forceState = null) {
         if (theaterBtn) {
             theaterBtn.classList.remove('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
             theaterBtn.title = 'เปิด/ปิด Theater Mode (ซ่อนเมนูอัตโนมัติเมื่อไม่มีการใช้งาน)';
+        }
+        // Exit Fullscreen if active
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            exitAppFullscreen().catch(() => {});
         }
         showToast('ออกจาก Theater Mode', 'info');
     }
@@ -1543,6 +1581,16 @@ export function initUI() {
             toggleTheaterMode(false);
         }
     });
+
+    // Sync Theater Mode if user exits OS Fullscreen directly (e.g. via browser UI)
+    const handleFullscreenChange = () => {
+        const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        if (!isFullscreen && isTheaterMode) {
+            toggleTheaterMode(false);
+        }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     const asidePanel = $('control-panel-aside') || document.querySelector('main > aside');
     if (asidePanel) {
