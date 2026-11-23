@@ -1131,6 +1131,86 @@ function registerSecret5Tap() {
     }, 1800);
 }
 
+// --- Theater Mode Smart Auto-Fade System ---
+let isTheaterMode = false;
+let theaterIdleTimer = null;
+const THEATER_IDLE_DELAY = 4500;
+
+export function isTheaterModeActive() {
+    return isTheaterMode;
+}
+
+export function collapseTheaterPanel() {
+    if (!isTheaterMode) return;
+
+    // Do not collapse if user is actively focusing an input in the aside panel
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
+        scheduleTheaterCollapse();
+        return;
+    }
+
+    // Do not collapse while toast notifications are actively displayed on screen
+    const toastContainer = $('toast-container');
+    if (toastContainer && toastContainer.children.length > 0) {
+        scheduleTheaterCollapse(3000);
+        return;
+    }
+
+    document.body.classList.add('theater-collapsed');
+    const theaterBtn = $('theater-btn');
+    if (theaterBtn) {
+        theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
+    }
+}
+
+export function wakeTheaterPanel(reason = 'interaction') {
+    if (!isTheaterMode) return;
+
+    if (document.body.classList.contains('theater-collapsed')) {
+        document.body.classList.remove('theater-collapsed');
+    }
+
+    scheduleTheaterCollapse();
+}
+
+export function scheduleTheaterCollapse(delay = THEATER_IDLE_DELAY) {
+    if (!isTheaterMode) return;
+    if (theaterIdleTimer) {
+        clearTimeout(theaterIdleTimer);
+    }
+    theaterIdleTimer = setTimeout(() => {
+        collapseTheaterPanel();
+    }, delay);
+}
+
+export function toggleTheaterMode(forceState = null) {
+    const nextState = forceState !== null ? forceState : !isTheaterMode;
+    isTheaterMode = nextState;
+    const theaterBtn = $('theater-btn');
+
+    if (isTheaterMode) {
+        document.body.classList.add('theater-mode');
+        if (theaterBtn) {
+            theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
+            theaterBtn.title = 'ปิด Theater Mode (กำลังทำงาน)';
+        }
+        showToast('🎬 เข้าสู่ Theater Mode: แผงเมนูด้านขวาจะซ่อนและขยายเต็มจออัตโนมัติเมื่อไม่มีการใช้งาน', 'info');
+        scheduleTheaterCollapse(THEATER_IDLE_DELAY);
+    } else {
+        if (theaterIdleTimer) {
+            clearTimeout(theaterIdleTimer);
+            theaterIdleTimer = null;
+        }
+        document.body.classList.remove('theater-mode', 'theater-collapsed');
+        if (theaterBtn) {
+            theaterBtn.classList.remove('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
+            theaterBtn.title = 'เปิด/ปิด Theater Mode (ซ่อนเมนูอัตโนมัติเมื่อไม่มีการใช้งาน)';
+        }
+        showToast('ออกจาก Theater Mode', 'info');
+    }
+}
+
 // --- Wire Event Handlers ---
 export function initUI() {
     // Cache references
@@ -1427,86 +1507,6 @@ export function initUI() {
             if (e.key === 'Enter') handleSendDanmaku();
         });
     }
-
-// --- Theater Mode Smart Auto-Fade System ---
-let isTheaterMode = false;
-let theaterIdleTimer = null;
-const THEATER_IDLE_DELAY = 4500;
-
-export function isTheaterModeActive() {
-    return isTheaterMode;
-}
-
-export function collapseTheaterPanel() {
-    if (!isTheaterMode) return;
-
-    // Do not collapse if user is actively focusing an input in the aside panel
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
-        scheduleTheaterCollapse();
-        return;
-    }
-
-    // Do not collapse while toast notifications are actively displayed on screen
-    const toastContainer = $('toast-container');
-    if (toastContainer && toastContainer.children.length > 0) {
-        scheduleTheaterCollapse(3000);
-        return;
-    }
-
-    document.body.classList.add('theater-collapsed');
-    const theaterBtn = $('theater-btn');
-    if (theaterBtn) {
-        theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
-    }
-}
-
-export function wakeTheaterPanel(reason = 'interaction') {
-    if (!isTheaterMode) return;
-
-    if (document.body.classList.contains('theater-collapsed')) {
-        document.body.classList.remove('theater-collapsed');
-    }
-
-    scheduleTheaterCollapse();
-}
-
-export function scheduleTheaterCollapse(delay = THEATER_IDLE_DELAY) {
-    if (!isTheaterMode) return;
-    if (theaterIdleTimer) {
-        clearTimeout(theaterIdleTimer);
-    }
-    theaterIdleTimer = setTimeout(() => {
-        collapseTheaterPanel();
-    }, delay);
-}
-
-export function toggleTheaterMode(forceState = null) {
-    const nextState = forceState !== null ? forceState : !isTheaterMode;
-    isTheaterMode = nextState;
-    const theaterBtn = $('theater-btn');
-
-    if (isTheaterMode) {
-        document.body.classList.add('theater-mode');
-        if (theaterBtn) {
-            theaterBtn.classList.add('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
-            theaterBtn.title = 'ปิด Theater Mode (กำลังทำงาน)';
-        }
-        showToast('🎬 เข้าสู่ Theater Mode: แผงเมนูด้านขวาจะซ่อนและขยายเต็มจออัตโนมัติเมื่อไม่มีการใช้งาน', 'info');
-        scheduleTheaterCollapse(THEATER_IDLE_DELAY);
-    } else {
-        if (theaterIdleTimer) {
-            clearTimeout(theaterIdleTimer);
-            theaterIdleTimer = null;
-        }
-        document.body.classList.remove('theater-mode', 'theater-collapsed');
-        if (theaterBtn) {
-            theaterBtn.classList.remove('text-cyan-400', 'border-cyan-400/80', 'bg-cyan-950/60');
-            theaterBtn.title = 'เปิด/ปิด Theater Mode (ซ่อนเมนูอัตโนมัติเมื่อไม่มีการใช้งาน)';
-        }
-        showToast('ออกจาก Theater Mode', 'info');
-    }
-}
 
     // 10. Theater & Fullscreen Modes
     const theaterBtn = $('theater-btn');
