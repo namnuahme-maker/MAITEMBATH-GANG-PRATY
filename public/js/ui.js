@@ -263,6 +263,72 @@ export function triggerMomentCard(text, iconClass = 'fa-sparkles') {
     }, 3000);
 }
 
+// --- Cinematic Track Change Announcement Animation ---
+let trackChangeHudTimer = null;
+
+export function triggerTrackChangeAnimation(video) {
+    if (!video || typeof document === 'undefined') return;
+
+    // A. Pulse player area border with cyan glow
+    const playerAreaEl = $('player-area');
+    if (playerAreaEl) {
+        playerAreaEl.classList.remove('player-track-switch-glow');
+        void playerAreaEl.offsetWidth;
+        playerAreaEl.classList.add('player-track-switch-glow');
+    }
+
+    // B. Cinematic Track Transition HUD (Lower-Third Banner on Player)
+    const hud = $('track-transition-hud');
+    const hudTitle = $('track-hud-title');
+    const hudAuthor = $('track-hud-author');
+    const hudThumb = $('track-hud-thumb');
+    const hudFallback = $('track-hud-fallback');
+    const hudAddedBy = $('track-hud-added-by');
+    const shimmer = document.querySelector('.track-hud-shimmer');
+
+    if (hud && hudTitle) {
+        if (trackChangeHudTimer) clearTimeout(trackChangeHudTimer);
+
+        hudTitle.textContent = video.title || 'กำลังเล่นเพลง';
+        if (hudAuthor) hudAuthor.textContent = video.author ? `${video.author}` : '';
+
+        const thumbUrl = getTrackThumb(video);
+        if (hudThumb) {
+            hudThumb.classList.remove('hidden');
+            if (hudFallback) hudFallback.classList.add('hidden');
+            hudThumb.onerror = () => {
+                hudThumb.classList.add('hidden');
+                if (hudFallback) hudFallback.classList.remove('hidden');
+            };
+            hudThumb.src = thumbUrl;
+        }
+
+        if (hudAddedBy) {
+            const userName = video.addedBy || 'เพื่อนในรถ';
+            const userColor = safeColor(video.color || '#ABD2FA');
+            const avatarHtml = video.avatar
+                ? `<img src="${escapeHtml(video.avatar)}" class="w-3.5 h-3.5 rounded-full object-cover border border-white/20 shrink-0 inline-block mr-1">`
+                : `<span class="w-2 h-2 rounded-full inline-block shrink-0 mr-1" style="background-color: ${userColor}"></span>`;
+            hudAddedBy.innerHTML = `เพิ่มโดย: ${avatarHtml}<span style="color: ${userColor}" class="font-semibold">${escapeHtml(userName)}</span>`;
+        }
+
+        if (shimmer) {
+            shimmer.classList.remove('track-hud-shimmer-animate');
+            void shimmer.offsetWidth;
+            shimmer.classList.add('track-hud-shimmer-animate');
+        }
+
+        hud.classList.remove('track-hud-hiding');
+        hud.classList.add('track-hud-active');
+
+        // Auto dismiss after 4.5 seconds
+        trackChangeHudTimer = setTimeout(() => {
+            hud.classList.remove('track-hud-active');
+            hud.classList.add('track-hud-hiding');
+        }, 4500);
+    }
+}
+
 // --- Party Pulse Event Badge (Cyan Ring & Toast on Song Add / Reactions) ---
 export function triggerPartyPulse(text) {
     if (!partyPulsePill) partyPulsePill = $('party-pulse-pill');
@@ -341,8 +407,15 @@ export function renderNowPlaying(currentVideo, isPlaying) {
                 nowInfoWrap.classList.add('animate-thumb-change');
             }
 
-            // D4. Trigger Moment Card on track change
-            triggerMomentCard(`✨ เพลงใหม่: ${currentVideo.title}`);
+            const nowThumbBox = $('now-thumb-box');
+            if (nowThumbBox) {
+                nowThumbBox.classList.remove('animate-vinyl-spin');
+                void nowThumbBox.offsetWidth;
+                nowThumbBox.classList.add('animate-vinyl-spin');
+            }
+
+            // Trigger Full Cinematic Track Change Animation (HUD + Screen Glow + Ambient)
+            triggerTrackChangeAnimation(currentVideo);
 
             lastRenderedVideoId = currentId;
         }

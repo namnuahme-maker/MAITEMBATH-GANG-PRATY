@@ -446,6 +446,88 @@
             transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
         }
 
+        /* --- Track Change Cinematic Transition Animation --- */
+        #track-transition-hud {
+            transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease;
+            will-change: transform, opacity;
+        }
+
+        #track-transition-hud.track-hud-active {
+            transform: translateY(0) scale(1) !important;
+            opacity: 1 !important;
+        }
+
+        #track-transition-hud.track-hud-hiding {
+            transform: translateY(16px) scale(0.96) !important;
+            opacity: 0 !important;
+        }
+
+        @keyframes hudShimmerSweep {
+            0% { transform: translateX(-150%); }
+            100% { transform: translateX(200%); }
+        }
+
+        .track-hud-shimmer-animate {
+            animation: hudShimmerSweep 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        @keyframes trackSwitchPop {
+            0% {
+                transform: translateY(12px) scale(0.95);
+                opacity: 0.3;
+                filter: blur(4px);
+            }
+            55% {
+                transform: translateY(-2px) scale(1.02);
+                opacity: 0.95;
+                filter: blur(0px);
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+                filter: blur(0px);
+            }
+        }
+
+        .animate-thumb-change {
+            animation: trackSwitchPop 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes vinylSpinDrop {
+            0% {
+                transform: scale(0.8) rotate(-25deg);
+                box-shadow: 0 0 0 rgba(0, 229, 255, 0);
+            }
+            60% {
+                transform: scale(1.06) rotate(6deg);
+                box-shadow: 0 0 25px rgba(0, 229, 255, 0.7);
+            }
+            100% {
+                transform: scale(1) rotate(0deg);
+                box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+            }
+        }
+
+        .animate-vinyl-spin {
+            animation: vinylSpinDrop 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes screenTrackFlash {
+            0% {
+                box-shadow: inset 0 0 0 rgba(0, 229, 255, 0);
+            }
+            35% {
+                box-shadow: inset 0 0 60px rgba(0, 229, 255, 0.25);
+            }
+            100% {
+                box-shadow: inset 0 0 0 rgba(0, 229, 255, 0);
+            }
+        }
+
+        .player-track-switch-glow {
+            animation: screenTrackFlash 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
         @media (min-width: 768px) {
             main > aside {
                 transition: 
@@ -2168,6 +2250,39 @@
                 </div>
             </div>
 
+            <!-- Cinematic Track Change Announcement HUD (Smooth Slide-In & Shimmer Animation) -->
+            <div id="track-transition-hud" class="absolute bottom-6 left-4 sm:left-6 z-40 pointer-events-none transition-all duration-700 ease-out transform translate-y-10 opacity-0 scale-95 flex items-center">
+                <div class="relative overflow-hidden flex items-center gap-3.5 p-3 sm:p-4 bg-black/85 backdrop-blur-2xl border border-cyan-400/40 rounded-2xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] shadow-cyan-950/60 max-w-sm sm:max-w-md group">
+                    <!-- Shimmer streak light animation across card -->
+                    <div class="track-hud-shimmer absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent pointer-events-none"></div>
+
+                    <!-- Vinyl Record / Thumbnail Box -->
+                    <div id="track-hud-thumb-box" class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-slate-900 border border-white/20 shrink-0 shadow-lg flex items-center justify-center">
+                        <img id="track-hud-thumb" src="" alt="Album Artwork" class="w-full h-full object-cover">
+                        <div id="track-hud-fallback" class="w-full h-full hidden items-center justify-center bg-cyan-950/80 text-cyan-400">
+                            <i class="fa-solid fa-compact-disc text-2xl animate-spin" style="animation-duration: 6s;"></i>
+                        </div>
+                    </div>
+
+                    <!-- Track Metadata -->
+                    <div class="flex-1 min-w-0 pr-1">
+                        <div class="flex items-center gap-1.5 mb-1">
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-[10px] font-extrabold text-cyan-300 tracking-wide uppercase">
+                                <span class="flex items-end gap-[2px] h-2.5">
+                                    <span class="w-[2px] h-2 bg-cyan-400 animate-pulse"></span>
+                                    <span class="w-[2px] h-3 bg-cyan-300 animate-pulse" style="animation-delay: 150ms;"></span>
+                                    <span class="w-[2px] h-1.5 bg-cyan-400 animate-pulse" style="animation-delay: 300ms;"></span>
+                                </span>
+                                กำลังเล่นเพลงใหม่
+                            </span>
+                        </div>
+                        <h3 id="track-hud-title" class="text-sm sm:text-base font-bold text-white truncate leading-snug drop-shadow-md"></h3>
+                        <p id="track-hud-author" class="text-xs text-slate-300 truncate mt-0.5"></p>
+                        <div id="track-hud-added-by" class="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Cinematic Fade Lyric Spotlight Banner (Triggered by '🚀 แสดงขึ้นจอ') -->
             <div id="lyric-spotlight-banner" class="absolute top-14 left-4 right-4 z-40 flex flex-col items-center text-center pointer-events-none">
                 <div class="bg-black/30 backdrop-blur-md border border-brand-peri/35 rounded-2xl px-5 py-2.5 shadow-xl shadow-cyan-500/10 max-w-xl">
@@ -2798,7 +2913,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="/js/main.js?v=35"></script>
-    <script nomodule src="/app.js?v=35"></script>
+    <script type="module" src="/js/main.js?v=36"></script>
+    <script nomodule src="/app.js?v=36"></script>
 </body>
 </html>
